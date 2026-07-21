@@ -1,0 +1,43 @@
+{
+  "format": "meshkeep-immutable-cid-lab-v1",
+  "kubo": {
+    "version": "0.42.0",
+    "repo_version": 18,
+    "image": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "image_id": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214"
+  },
+  "profile": {
+    "name": "unixfs-v1-2025",
+    "import": {
+      "CidVersion": 1,
+      "HashFunction": "sha2-256",
+      "UnixFSChunker": "size-1048576",
+      "UnixFSDAGLayout": "balanced",
+      "UnixFSFileMaxLinks": 1024,
+      "UnixFSHAMTDirectoryMaxFanout": 256,
+      "UnixFSHAMTDirectorySizeEstimation": "block",
+      "UnixFSHAMTDirectorySizeThreshold": "256KiB",
+      "UnixFSRawLeaves": true
+    }
+  },
+  "fixtures": {
+    "v1": {
+      "root_cid": "bafybeih3ovsytsdcmgcqyl6txyquj5nsd3d2svk3ezczlahga7dfql3mki",
+      "files": {
+        "css/style.css": "e42b6938b38cc6f5ddfd0ebae19fe47324a53c63565a38087033a0c0ca951b72",
+        "img/asset.txt": "bf143a7834b8ae2e5394f77d8697ae30910c7a2b1e706cf996a3150db847d63f",
+        "index.html": "f379f57338ab5f56e774fe7cb52955f970c6117f90b921fa5adf36bf69b371fb",
+        "js/app.js": "dafa4e167587b7ee30cc00d5851117897862b6c2b626f32d848bc3a66bfd2d47"
+      }
+    },
+    "v2": {
+      "root_cid": "bafybeiczekoh2tsak4wy6hhuxr7tmmaqpjfrh5yqckq4rzmnavkk6k5hwq",
+      "files": {
+        "css/style.css": "1abd6e30575ef738a19fcf650c6ceb679afafad026ab9596f9ed50f91ba98148",
+        "img/asset.txt": "ab3a7d2c07c3071d602f4bffa7ea0cc0069fb182f394551a86d82f13b1ffa217",
+        "index.html": "67c2af33de30cd941d455f90643d711f4fae3a127e6917d28fdc66cdef7cd590",
+        "js/app.js": "d3f09fcf0e2b2eb19b5880635187980ec021b65f9982a80ad4365a47cd867610"
+      }
+    }
+  }
+}

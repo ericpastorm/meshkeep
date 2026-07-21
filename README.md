@@ -2,7 +2,7 @@
 
 Publish a signed static website version and let volunteer replicas keep it available after the publisher goes offline.
 
-> **Status: pre-alpha.** The repository contains the documentation baseline plus initial protocol and CLI scaffolding. Publication, signing semantics, Kubo integration, replication, and the manual lab proof are not implemented. Do not use Meshkeep for production data or availability.
+> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, and a reproducible immutable-CID Kubo lab. Signed IPNS publication, key transfer, independent-machine proof, and the hard MVP are not implemented. Do not use Meshkeep for production data or availability.
 
 ## What Meshkeep Is
 
@@ -59,8 +59,8 @@ packages/
   replicator/     # Planned v0.2 headless replica
 apps/
   desktop/        # Planned v0.3 Linux Tauri shell
-spec/             # Draft schema; normative specification/fixtures are planned
-examples/         # Demo site; reproducible manual lab material is planned
+spec/             # Draft schema; normative protocol fixtures are planned
+examples/         # Demo site plus the immutable-CID Kubo lab and fixtures
 docs/
   adr/            # Architecture decision records
 ```
@@ -72,7 +72,7 @@ docs/
 - Git
 - Node.js 22 or newer; `.node-version` currently pins 22.20.0
 - pnpm 10.30.3, as declared by `package.json`
-- Kubo for the planned manual lab; its tested version has not yet been recorded
+- Docker for the Kubo lab; `ipfs/kubo` 0.42.0 is pinned by digest in its manifest
 - Linux or another environment capable of running isolated Kubo repositories for that lab
 
 Rust is not a current prerequisite.
@@ -87,6 +87,14 @@ pnpm check
 ```
 
 Focused scripts are `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm format`. The current CLI only provides version output and a prerequisite-report placeholder; it does not publish or replicate content.
+
+The first manual proof covers immutable CIDs and offline replica retention only:
+
+```sh
+./examples/lab/run-lab.sh
+```
+
+See [the lab guide](examples/lab/README.md) and its explicit IPNS/key-transfer limitations.
 
 ## Principles
 

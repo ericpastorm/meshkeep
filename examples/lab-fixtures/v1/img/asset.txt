@@ -1,0 +1,2 @@
+# v1 static asset — static bytes, 16 bytes exactly
+v1-asset-content

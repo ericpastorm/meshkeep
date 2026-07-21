@@ -1,0 +1,37 @@
+{
+  "format": "meshkeep-immutable-cid-lab-result-v1",
+  "isolation": {
+    "bootstrap_peers_per_node": 0,
+    "docker_internal_network": true,
+    "host_ports_published": [],
+    "temporary_repositories": true
+  },
+  "kubo": {
+    "image": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "image_id": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "repo_version": 18,
+    "version": "0.42.0"
+  },
+  "limitations": [
+    "IPNS publication and signed record validation were not exercised",
+    "publishing-key transfer was not exercised",
+    "containers emulate isolated nodes on one Docker host"
+  ],
+  "profile": "unixfs-v1-2025",
+  "result": "pass",
+  "v1": {
+    "independent_import_match": true,
+    "offline_replicas_verified": 2,
+    "reachable_blocks": 8,
+    "repeat_import_match": true,
+    "root_cid": "bafybeih3ovsytsdcmgcqyl6txyquj5nsd3d2svk3ezczlahga7dfql3mki"
+  },
+  "v2": {
+    "independent_import_match": true,
+    "offline_replicas_verified": 2,
+    "reachable_blocks": 8,
+    "root_cid": "bafybeiczekoh2tsak4wy6hhuxr7tmmaqpjfrh5yqckq4rzmnavkk6k5hwq",
+    "v1_retained": true
+  },
+  "verified_on": "2026-07-21"
+}

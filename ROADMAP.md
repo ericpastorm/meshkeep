@@ -38,14 +38,14 @@ Goal: prove Kubo and IPNS behavior before fixing a Meshkeep protocol or automati
 - [x] Initialize the Git repository.
 - [x] Establish project, governance, architecture, threat, privacy, and MVP scope documentation.
 - [x] Establish the technical and configuration baseline for the workspace, initial packages, fixtures, and CI.
-- [ ] Define a disposable static fixture and expected file checksums.
-- [ ] Record exact Kubo and environment versions for the lab.
-- [ ] Document deterministic import steps for `unixfs-v1-2025` and confirm repeatable root CIDs.
-- [ ] Publish v1 through IPNS and recursively pin it on two isolated replicas.
-- [ ] Demonstrate v1 retrieval from both replicas after origin shutdown.
+- [x] Define a disposable static fixture and expected file checksums. (`examples/lab-fixtures/v1` + `v2`; eight SHA-256 values in the lab manifest)
+- [x] Record exact Kubo and environment versions for the lab. (Kubo 0.42.0/repo 18; image pinned as `sha256:8907cb0c…`)
+- [x] Document deterministic import steps for `unixfs-v1-2025` and confirm repeatable root CIDs. (v1 repeated on publisher and independently hashed on a replica; v2 independently hashed on a second replica)
+- [ ] Publish v1 through IPNS and recursively pin it on two isolated replicas. (recursive pin is proven for the immutable CID; IPNS is not exercised)
+- [x] Demonstrate v1 retrieval from both replicas after origin shutdown. (all reachable refs and four file hashes verified on each replica with the publisher stopped)
 - [ ] Transfer a disposable publishing key to a second machine and publish v2.
 - [ ] Demonstrate signed update resolution, complete synchronization, and v2 retrieval from both replicas.
-- [ ] Capture commands, expected outputs, failure notes, and cleanup steps in a manual lab guide.
+- [x] Capture commands, expected outputs, failure notes, and cleanup steps in a manual lab guide. (`examples/lab/README.md`)
 
 Exit gate: the hard MVP lifecycle works manually and remaining Kubo/IPNS limitations are documented. If it fails, revise assumptions before designing the CLI.
 
@@ -143,3 +143,4 @@ Exit gate: each conditional feature has independent evidence, an accepted ADR, a
 - 2026-07-18: Git repository initialization observed.
 - 2026-07-18: Initial project, contribution, conduct, security, architecture, threat model, privacy, roadmap, and MVP scope documentation created.
 - 2026-07-18: Technical baseline verified: pnpm workspace on Node.js 22; Biome, TypeScript, Vitest, and tsup configuration; initial protocol and CLI packages; draft schema; demo fixture; CI; frozen-lockfile installation; and `pnpm check` passing with 3 tests. No publication, replication, protocol, Kubo, or lab milestone is complete.
+- 2026-07-21: Immutable-CID Kubo lab passed with Kubo 0.42.0 pinned by digest. Three disposable repos applied `unixfs-v1-2025`; two replicas matched complete 8-block v1/v2 graphs and file checksums after origin shutdown; v1 remained retained after v2. The network was Docker-internal with no host ports/bootstrap/telemetry, and cleanup was verified. IPNS, signatures, key transfer, and independent machines remain unproven, so the hard MVP is still open.
