@@ -7,9 +7,9 @@
 ## Public entry point and exports
 
 - Package subpath `@meshkeep/protocol` is the only declared export.
-- `types` and `development` resolve to `src/index.ts`; normal ESM `import` resolves to `dist/index.js`.
+- The `development` condition resolves types to `src/index.ts` and runtime imports to `dist/index.js`; normal `types` and ESM `import` resolve to `dist/index.d.ts` and `dist/index.js`.
 - `src/index.ts` exports runtime constants `VERSION`, `SCHEMA_ID`, and `UNIXFS_PROFILE`, plus TypeScript interfaces `DeploymentStatsV1` and `DeploymentManifestV1`.
-- The package is private, ESM-only, and publishes only `dist/` if packaging is enabled.
+- The package is private and ESM-only. Its artifact includes `dist/` plus only `src/index.ts` for development type resolution; tests and codemaps remain excluded.
 
 ## Data and control flow
 

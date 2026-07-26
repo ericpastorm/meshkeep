@@ -70,8 +70,8 @@ docs/
 ### Prerequisites
 
 - Git
-- Node.js 22 or newer; `.node-version` currently pins 22.20.0
-- pnpm 10.30.3, as declared by `package.json`
+- Node.js `>=22.23.1 <23`; `.node-version` pins the tested 22.23.1 security baseline
+- pnpm 10.34.5, as declared by the root `packageManager` field
 - Docker for the Kubo lab; `ipfs/kubo` 0.42.0 is pinned by digest in its manifest
 - Linux or another environment capable of running isolated Kubo repositories for that lab
 
@@ -86,7 +86,9 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-Focused scripts are `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm format`. The current CLI only provides version output and a prerequisite-report placeholder; it does not publish or replicate content.
+Focused scripts are `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm format`, and `pnpm smoke:artifacts`. The aggregate check builds before the artifact smoke test, which packs both packages, creates a frozen offline consumer from the current pnpm store, verifies runtime and TypeScript export conditions, exercises the installed bin shim, and preserves direct/symlinked built-bin regression coverage. The current CLI only provides version output and a prerequisite report; `doctor` accepts stable Node `>=22.23.1 <23`, reports unsupported runtimes with a nonzero status, and does not perform external checks.
+
+The root pnpm override temporarily keeps tsup on esbuild 0.28.1 so the workspace has one esbuild release line; remove it when tsup's declared dependency range advances.
 
 The first manual proof covers immutable CIDs and offline replica retention only:
 

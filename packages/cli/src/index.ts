@@ -1,11 +1,14 @@
-#!/usr/bin/env node
-
-import { pathToFileURL } from "node:url";
-
 import { VERSION } from "@meshkeep/protocol";
 import { Command } from "commander";
 
 export const MINIMUM_NODE_MAJOR = 22;
+export const MINIMUM_NODE_VERSION = "22.23.1" as const;
+export const SUPPORTED_NODE_RANGE = ">=22.23.1 <23" as const;
+
+const STABLE_SEMVER_PATTERN =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const MINIMUM_NODE_MINOR = 23;
+const MINIMUM_NODE_PATCH = 1;
 
 export interface DoctorReport {
   nodeSupported: boolean;
@@ -14,13 +17,24 @@ export interface DoctorReport {
 
 export interface CliOptions {
   nodeVersion?: string;
+  setExitCode?: (exitCode: number) => void;
   write?: (message: string) => void;
 }
 
 export function getDoctorReport(nodeVersion = process.versions.node): DoctorReport {
-  const nodeMajor = Number.parseInt(nodeVersion.split(".")[0] ?? "", 10);
-  const nodeSupported = Number.isInteger(nodeMajor) && nodeMajor >= MINIMUM_NODE_MAJOR;
-  const nodeStatus = nodeSupported ? "OK" : `requires Node ${MINIMUM_NODE_MAJOR} or newer`;
+  const nodeVersionMatch = STABLE_SEMVER_PATTERN.exec(nodeVersion);
+  const nodeVersionParts =
+    nodeVersionMatch?.[0] === nodeVersion
+      ? nodeVersionMatch.slice(1, 4).map((part) => Number(part))
+      : [];
+  const [nodeMajor = Number.NaN, nodeMinor = Number.NaN, nodePatch = Number.NaN] = nodeVersionParts;
+  const nodeSupported =
+    nodeVersionParts.length === 3 &&
+    nodeVersionParts.every(Number.isSafeInteger) &&
+    nodeMajor === MINIMUM_NODE_MAJOR &&
+    (nodeMinor > MINIMUM_NODE_MINOR ||
+      (nodeMinor === MINIMUM_NODE_MINOR && nodePatch >= MINIMUM_NODE_PATCH));
+  const nodeStatus = nodeSupported ? "OK" : `requires Node ${SUPPORTED_NODE_RANGE}`;
 
   return {
     nodeSupported,
@@ -34,6 +48,11 @@ export function getDoctorReport(nodeVersion = process.versions.node): DoctorRepo
 export function createProgram(options: CliOptions = {}): Command {
   const write = options.write ?? console.log;
   const nodeVersion = options.nodeVersion ?? process.versions.node;
+  const setExitCode =
+    options.setExitCode ??
+    ((exitCode: number) => {
+      process.exitCode = exitCode;
+    });
   const program = new Command();
 
   program.name("meshkeep").description("Meshkeep command-line interface").version(VERSION);
@@ -51,6 +70,9 @@ export function createProgram(options: CliOptions = {}): Command {
       for (const line of report.lines) {
         write(line);
       }
+      if (!report.nodeSupported) {
+        setExitCode(1);
+      }
     });
 
   return program;
@@ -58,9 +80,4 @@ export function createProgram(options: CliOptions = {}): Command {
 
 export async function runCli(argv = process.argv): Promise<void> {
   await createProgram().parseAsync(argv);
-}
-
-const entryPoint = process.argv[1];
-if (entryPoint && import.meta.url === pathToFileURL(entryPoint).href) {
-  await runCli();
 }

@@ -21,21 +21,21 @@ The CLI declares `@meshkeep/protocol` through `workspace:*` and currently consum
 
 ## Entry points
 
-- `@meshkeep/protocol`: the package root export points type and development resolution at `protocol/src/index.ts` and normal ESM imports at `protocol/dist/index.js`.
-- `@meshkeep/cli`: the package root export points to `cli/dist/index.js` with declarations at `cli/dist/index.d.ts`; the `meshkeep` binary also launches `cli/dist/index.js`.
-- Both builds begin at `src/index.ts`, emit ESM JavaScript and declarations under `dist/`, and publish only `dist/` if packaging is enabled.
+- `@meshkeep/protocol`: the CLI TypeScript development condition resolves shipped types from `protocol/src/index.ts`; development and normal runtime imports use `protocol/dist/index.js`, while normal types use `protocol/dist/index.d.ts`.
+- `@meshkeep/cli`: the package root export points to `cli/dist/index.js` with declarations at `cli/dist/index.d.ts`; the `meshkeep` binary launches the separately built `cli/dist/bin.js`.
+- The protocol builds `src/index.ts` and packages `dist/` plus that exact source type entry; the CLI builds side-effect-free `src/index.ts` plus unguarded `src/bin.ts` and packages only `dist/`.
 
-The protocol entry point currently exports literals and TypeScript manifest interfaces. The CLI entry point exposes program construction and execution helpers, and its direct-launch guard prevents imports from parsing process arguments.
+The protocol entry point currently exports literals and TypeScript manifest interfaces. The importable CLI entry point exposes program construction and execution helpers without parsing arguments; only the dedicated executable entry calls `runCli`.
 
 ## Build, test, and typecheck integration
 
 The root manifest delegates `build`, `test`, and `typecheck` recursively to workspace packages with `--if-present`. Both packages provide the same lifecycle shape:
 
-- `build`: `tsup src/index.ts --format esm --dts --clean`
+- `build`: tsup emits package ESM and declarations; the CLI includes both `src/index.ts` and `src/bin.ts`
 - `test`: `vitest run`, discovering colocated source tests
 - `typecheck`: `tsc --project tsconfig.json --noEmit`
 
-The root `check` runs Biome across the repository, then workspace typechecking, tests, and builds. Shared TypeScript, Vitest, tsup, Node typings, and Biome versions are owned by the root manifest; Node 22 or newer and pnpm 10.30.3 are the declared repository toolchain.
+The root `check` runs Biome across the repository, workspace typechecking, tests, builds, and a packed/offline-installed artifact smoke test. Shared TypeScript, Vitest, tsup, Node typings, and Biome versions are owned by the root manifest; root and CLI engines require the tested `>=22.23.1 <23` line, `.node-version` pins Node 22.23.1, and the root `packageManager` pins pnpm 10.34.5. A narrow temporary override keeps tsup's esbuild dependency on 0.28.1.
 
 ## Architectural boundaries
 

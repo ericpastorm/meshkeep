@@ -18,10 +18,12 @@ replicator, and a desktop application are not implemented.
 ## System entry points
 
 - `packages/protocol/src/index.ts`: public protocol constants and compile-time manifest models.
-- `packages/cli/src/index.ts`: importable CLI assembly and the `meshkeep` executable entry point.
+- `packages/cli/src/index.ts`: side-effect-free, importable CLI assembly and public helpers.
+- `packages/cli/src/bin.ts`: unguarded `meshkeep` executable entry point.
 - `examples/lab/run-lab.sh`: manual Docker/Kubo integration workflow and evidence generator.
 - `spec/manifest-v1.schema.json`: draft structural contract for an unsigned deployment manifest.
 - `package.json`: workspace scripts, toolchain versions, and aggregate `pnpm check` pipeline.
+- `scripts/smoke-artifacts.mjs`: built and packed/offline-installed package release-path smoke test.
 - `.github/workflows/ci.yml`: Node/pnpm CI installation and aggregate workspace validation.
 - `ROADMAP.md`: hard-MVP gates, phase ordering, acceptance criteria, and progress evidence.
 - `AGENTS.md`: repository-wide architecture, security, testing, and protocol-change rules.
@@ -55,7 +57,7 @@ fixture bytes + pinned Kubo/import profile
 | `packages/protocol/` | Protocol constants, manifest types, and the future home of deterministic runtime validation, canonicalization, naming, and signatures. | [packages/protocol/codemap.md](packages/protocol/codemap.md) |
 | `packages/protocol/src/` | Exact public protocol exports and colocated unit-test context. | [packages/protocol/src/codemap.md](packages/protocol/src/codemap.md) |
 | `packages/cli/` | Commander-based executable/package boundary and local orchestration policy. | [packages/cli/codemap.md](packages/cli/codemap.md) |
-| `packages/cli/src/` | CLI construction, doctor reporting, output injection, parsing, and direct-execution guard. | [packages/cli/src/codemap.md](packages/cli/src/codemap.md) |
+| `packages/cli/src/` | Side-effect-free CLI construction plus the dedicated executable entry module. | [packages/cli/src/codemap.md](packages/cli/src/codemap.md) |
 | `spec/` | Draft and future normative schemas, protocol text, and interoperability fixtures. | [spec/codemap.md](spec/codemap.md) |
 | `examples/` | Non-normative demo bytes, deterministic lab fixtures, and manual integration assets. | [examples/codemap.md](examples/codemap.md) |
 | `examples/lab/` | Hardened one-host Docker/Kubo workflow, pinned expectations, and recorded evidence. | [examples/lab/codemap.md](examples/lab/codemap.md) |
@@ -77,7 +79,8 @@ pnpm check
   ├── biome check .
   ├── pnpm typecheck
   ├── pnpm test
-  └── pnpm build
+  ├── pnpm build
+  └── pnpm smoke:artifacts
 ```
 
 The Docker/Kubo lab is manual and is not part of `pnpm check` or pull-request CI. Generated
