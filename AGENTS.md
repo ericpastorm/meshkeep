@@ -109,3 +109,14 @@ Do not merge a protocol change based only on matching implementation behavior. U
 ## Definition Of Done
 
 A change is done when its scoped behavior is implemented, relevant tests and fixtures pass, `pnpm check` passes when available, security and privacy effects are addressed, user-facing and protocol documentation agree with behavior, no central dependency or scope expansion was introduced, and any completed roadmap item has reproducible evidence recorded. Report unavailable checks and residual risks explicitly.
+
+## Repository Map
+
+A full codemap is available at `codemap.md` in the project root.
+
+Before working on any task, read `codemap.md` to understand:
+- Project architecture and entry points
+- Directory responsibilities and design patterns
+- Data flow and integration points between modules
+
+For deep work on a specific folder, also read that folder's `codemap.md`.
