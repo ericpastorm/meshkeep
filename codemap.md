@@ -38,7 +38,7 @@ specification ──> @meshkeep/protocol ──> @meshkeep/cli
 
 fixture bytes + pinned Kubo platform/index/import profile
        └──> examples/lab/run-lab.sh ──> CIDs, recursive pins, verified cleanup, and bounded evidence
-       └──> examples/lab/run-ipns-lab.sh ──> direct Kubo 0.42 signed-name/key-transfer/semantic-negative observations
+       └──> examples/lab/run-ipns-lab.sh ──> signed-name/key-transfer/negative/local-HTTP/RPC-boundary observations
 ```
 
 - Protocol rules flow outward from `spec/` and `@meshkeep/protocol`; presentation and
@@ -46,8 +46,9 @@ fixture bytes + pinned Kubo platform/index/import profile
 - Both Kubo labs are deliberately standalone and do not exercise the TypeScript protocol or CLI
   packages. The immutable lab proves deterministic import, complete recursive retention, and
   origin-offline reads. The IPNS precursor additionally observes native Kubo signed updates,
-  disposable key transfer, exact inspect/diagnostic behavior, and bounded failure paths on one
-  host without defining Meshkeep policy.
+  disposable key transfer, exact inspect/diagnostic behavior, bounded failure paths, replica-local
+  gateway serving, and same-network no-HTTP RPC failure (connection refusal or bounded inner
+  timeout) on one host without defining Meshkeep policy.
 - No Meshkeep-operated gateway, resolver, pinning service, telemetry collector, coordinator, or
   canonical HTTP origin participates in correctness.
 - Wire formats, signing inputs, identity, ordering, IPNS mapping, compatibility, and trust changes
@@ -91,12 +92,13 @@ The Docker/Kubo labs are manual and are not part of `pnpm check` or pull-request
 made atomically visible with `os.replace` only after status-preserving global/name/label queries
 verify captured resources and the temporary root absent. It records sanitized input/environment
 provenance without expanding the lab's claim. IPNS result v1 uses the same fail-closed boundary
-after four-node and owner-only key/raw-record/diagnostic cleanup. It records bounded closest-peer
-samples only as booleans, distinguishes routing-put status from the subsequent selected-record
-observation, and excludes private key material, raw records, diagnostics, and network identities. Generated
+after four-node and owner-only key/raw-record/diagnostic cleanup. It records bounded closest-peer,
+per-replica local-gateway, unavailable-target HTTP, and RPC-boundary observations only as sanitized
+counts/booleans, distinguishes routing-put status from the subsequent selected-record observation,
+and excludes response bodies/headers, private key material, raw records, diagnostics, and network identities. Generated
 `dist/`, dependency directories, and lab results are not source entry points. The hard MVP is not
 complete until signed-name continuity, key migration, independent environments, complete graph
-retention, origin shutdown, gateway access, and required negative paths have reproducible evidence.
+retention, origin shutdown, independent-host gateway/firewall access, and required negative paths have reproducible evidence.
 
 ## Repository invariants
 

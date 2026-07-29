@@ -11,6 +11,27 @@
     "verified": true
   },
   "format": "meshkeep-ipns-key-transfer-lab-result-v1",
+  "gateway_http": {
+    "absent_ipns_record_http_200_checks": 2,
+    "absent_target_final_http_412_checks": 2,
+    "gateway_bind_loopback_only": true,
+    "local_content_served_with_no_fetch": true,
+    "no_fetch": true,
+    "per_replica": [
+      {
+        "ipfs_v1_http_200_and_hash_checks": 4,
+        "ipfs_v2_http_200_and_hash_checks": 4,
+        "ipns_v2_http_200_and_hash_checks": 4
+      },
+      {
+        "ipfs_v1_http_200_and_hash_checks": 4,
+        "ipfs_v2_http_200_and_hash_checks": 4,
+        "ipns_v2_http_200_and_hash_checks": 4
+      }
+    ],
+    "publishers_offline": true,
+    "request_timeout_seconds": 10
+  },
   "ipns": {
     "cache_bypass": true,
     "lifetime": "10m",
@@ -89,7 +110,8 @@
     "Kubo native IPNS sequence ordering is observed here; Meshkeep release version, freshness, rollback, quorum, compatibility, resource-limit, and synchronization-atomicity semantics remain unspecified.",
     "Cleartext key export is suitable only for this disposable lab procedure; temporary owner-only persistence and ordinary file deletion are not secure erasure.",
     "A status-zero routing put is only paired with a subsequent byte-identical valid-v2 selected-record observation; no rejection, storage absence, or non-propagation is claimed.",
-    "No public routing, provider announcement, gateway HTTP access, interrupted synchronization, key rotation, revocation, or compromise recovery was tested."
+    "Loopback gateway serving and same-network API refusal were tested only inside same-host containers; independent-host gateway URLs, firewall and host-boundary behavior, public gateway access, and interrupted synchronization remain untested.",
+    "No public routing, provider announcement, key rotation, revocation, or compromise recovery was tested."
   ],
   "negative_observations": {
     "absent_target_missing_from_successful_complete_recursive_pin_listing": true,
@@ -129,8 +151,8 @@
     },
     "inputs": {
       "immutable_manifest_sha256": "09c9b23033fd4df6197abec7d2e86f4edb8f59a51fd886d4ef331c2a0c6436f3",
-      "ipns_manifest_sha256": "c7adbb782910263af54a57faa9cdec0629072a3cf0186af49742555a18d5eeda",
-      "run_ipns_lab_sha256": "dd4521324814eae484ed5df416348eb309742fb70e0a879e8af72f8553a1bacc"
+      "ipns_manifest_sha256": "377bd94a6b03e7fa724ad9abffd06ff2b91116d632467b44bfe13bcb6e3f850a",
+      "run_ipns_lab_sha256": "8f22c08e05c01151af2133ed2ccc7b8cb9aef50e76f8e2c3abe10d6686913208"
     },
     "tools": {
       "bash": "5.2.21(1)-release",
@@ -138,7 +160,7 @@
       "python": "Python 3.12.3"
     }
   },
-  "public_ipns_name": "k51qzi5uqu5diqwy2zslj3vc43bmauodxjfnapkyn8g1l10q0sit5z9t4qtnfn",
+  "public_ipns_name": "k51qzi5uqu5dmgbo3tw4g1bq72yjgacadagtrpyqacthxu24dipyfzoatzznso",
   "replicas": {
     "both_versions_with_both_publishers_offline": true,
     "count": 2,
@@ -147,6 +169,17 @@
     "v2_complete_graph_and_content": true
   },
   "result": "pass",
+  "rpc_boundary": {
+    "api_bind_loopback_only": true,
+    "cross_container_name_resolution_checks": 2,
+    "cross_container_no_http_refusal_or_inner_timeout_checks": 2,
+    "host_port_queries_completed": 4,
+    "host_ports_published": [],
+    "local_loopback_post_checks": 2,
+    "observed_bounded_inner_timeouts": 0,
+    "observed_connection_refusals": 2,
+    "verified": true
+  },
   "verified_on": "2026-07-29",
   "versions": {
     "v1": {

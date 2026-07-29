@@ -2,7 +2,7 @@
 
 Publish a signed static website version and let volunteer replicas keep it available after the publisher goes offline.
 
-> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, a reproducible immutable-CID Kubo lab, and a separate same-host native-Kubo signed-IPNS/key-transfer precursor that recursively pins complete graphs on two replicas. Independent-environment acceptance and the hard MVP remain open, and the protocol/CLI workflows are not implemented. Do not use Meshkeep for production data or availability.
+> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, a reproducible immutable-CID Kubo lab, and a separate same-host native-Kubo signed-IPNS/key-transfer precursor that recursively pins and locally gateway-serves complete graphs on two replicas while checking loopback RPC isolation. Independent-host gateway/firewall acceptance and the hard MVP remain open, and the protocol/CLI workflows are not implemented. Do not use Meshkeep for production data or availability.
 
 ## What Meshkeep Is
 
@@ -60,7 +60,7 @@ packages/
 apps/
   desktop/        # Planned v0.3 Linux Tauri shell
 spec/             # Draft schema; normative protocol fixtures are planned
-examples/         # Demo site plus the immutable-CID Kubo lab and fixtures
+examples/         # Demo site, immutable-CID lab, signed-IPNS precursor, and fixtures
 docs/
   adr/            # Architecture decision records
 ```
@@ -90,13 +90,19 @@ Focused scripts are `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `p
 
 The root pnpm override temporarily keeps tsup on esbuild 0.28.1 so the workspace has one esbuild release line; remove it when tsup's declared dependency range advances.
 
-The first manual proof covers immutable CIDs and offline replica retention only:
+The immutable manual proof covers CIDs and offline replica retention:
 
 ```sh
 ./examples/lab/run-lab.sh
 ```
 
-See [the lab guide](examples/lab/README.md) and its explicit IPNS/key-transfer limitations.
+The separate signed-IPNS precursor adds same-host key transfer, negative paths, local gateway HTTP, and RPC-boundary observations:
+
+```sh
+./examples/lab/run-ipns-lab.sh
+```
+
+See [the lab guide](examples/lab/README.md) and [the signed-IPNS guide](examples/lab/IPNS.md). Neither same-host run supplies independent-environment hard-MVP evidence.
 
 ## Principles
 

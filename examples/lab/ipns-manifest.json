@@ -4,6 +4,7 @@
   "network": {
     "dht_record_count": 4,
     "dht_timeout": "20s",
+    "http_request_timeout_seconds": 10,
     "resolve_attempts": 8,
     "resolve_retry_delay_seconds": 2
   },

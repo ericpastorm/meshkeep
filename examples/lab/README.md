@@ -2,7 +2,7 @@
 
 This immutable runner proves the immutable-content subset of the planned Meshkeep lifecycle. By itself it does **not** prove IPNS publication, signed update validation, publishing-key migration, independent physical hosts, or the hard MVP.
 
-The separate same-host signed-IPNS/key-transfer precursor is documented in [IPNS.md](IPNS.md) and run by `run-ipns-lab.sh`. Its settings live in `ipns-manifest.json`; it reuses this immutable manifest rather than duplicating Kubo/profile/fixture ownership.
+The separate same-host signed-IPNS/key-transfer precursor is documented in [IPNS.md](IPNS.md) and run by `run-ipns-lab.sh`. Its settings live in `ipns-manifest.json`; it reuses this immutable manifest rather than duplicating Kubo/profile/fixture ownership. It additionally checks publisher-offline replica-loopback `/ipfs` and `/ipns` serving plus same-network no-HTTP failure—connection refusal or bounded inner timeout—against loopback-bound Kubo RPC.
 
 ## Proven behavior
 
@@ -120,4 +120,4 @@ No output is expected.
 
 The temporary file is fsynced before `os.replace`; that atomic replacement is the result's visibility commit point. The script then fsyncs the containing directory where supported. An unexpected directory-fsync failure after replacement can therefore leave a complete new result visible while the command exits non-zero and prints neither `Results:` nor `Lab: PASS`.
 
-This is one-host container isolation, not separate operators or machines. CID transfer in this runner uses explicit libp2p connections, not IPNS. The separate Phase 3 precursor now observes disposable native-Kubo IPNS signing, same-name v1→v2 publication after key transfer, and bounded negative paths on the same host; an independent-environment run is still required before claiming the hard MVP.
+This is one-host container isolation, not separate operators or machines. CID transfer in this runner uses explicit libp2p connections, not IPNS. The separate Phase 3 precursor now observes disposable native-Kubo IPNS signing, same-name v1→v2 publication after key transfer, bounded negative paths, local gateway serving, and same-network no-HTTP failure—connection refusal or bounded inner timeout—on the same host; independent-host gateway URL, firewall/host-boundary, and full hard-MVP evidence remain open.

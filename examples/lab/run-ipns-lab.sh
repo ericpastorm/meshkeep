@@ -54,18 +54,19 @@ if settings != {"key_name":"meshkeep-publisher","key_type":"ed25519","lifetime":
 if expected != {"reachable_blocks_per_version":8,"replicas":2,"publishers":2}: raise SystemExit("unsupported expectations")
 if not isinstance(network.get("dht_record_count"), int) or not 1 <= network["dht_record_count"] <= 4: raise SystemExit("invalid DHT record count")
 if not re.fullmatch(r"[1-9][0-9]*s", network.get("dht_timeout", "")): raise SystemExit("invalid DHT timeout")
+if network.get("http_request_timeout_seconds") != 10: raise SystemExit("unsupported HTTP request timeout")
 if not isinstance(network.get("resolve_attempts"), int) or not 1 <= network["resolve_attempts"] <= 20: raise SystemExit("invalid resolve attempts")
 if not isinstance(network.get("resolve_retry_delay_seconds"), int) or not 1 <= network["resolve_retry_delay_seconds"] <= 10: raise SystemExit("invalid retry delay")
-for value in (kubo["version"], str(kubo["repo_version"]), kubo["image"], kubo["index_digest"], kubo["requested_platform"], profile["name"], fixtures["v1"]["root_cid"], fixtures["v2"]["root_cid"], settings["key_name"], settings["key_type"], settings["lifetime"], settings["ttl"], str(settings["v1_sequence"]), str(settings["v2_sequence"]), str(settings["eol_bracket_tolerance_seconds"]), str(network["dht_record_count"]), network["dht_timeout"], str(network["resolve_attempts"]), str(network["resolve_retry_delay_seconds"]), json.dumps(required_import, sort_keys=True, separators=(",",":"))): print(value)
+for value in (kubo["version"], str(kubo["repo_version"]), kubo["image"], kubo["index_digest"], kubo["requested_platform"], profile["name"], fixtures["v1"]["root_cid"], fixtures["v2"]["root_cid"], settings["key_name"], settings["key_type"], settings["lifetime"], settings["ttl"], str(settings["v1_sequence"]), str(settings["v2_sequence"]), str(settings["eol_bracket_tolerance_seconds"]), str(network["dht_record_count"]), network["dht_timeout"], str(network["resolve_attempts"]), str(network["resolve_retry_delay_seconds"]), str(network["http_request_timeout_seconds"]), json.dumps(required_import, sort_keys=True, separators=(",",":"))): print(value)
 PY
 )
-[[ ${#META[@]} -eq 20 ]] || fail "manifest metadata validation failed"
+[[ ${#META[@]} -eq 21 ]] || fail "manifest metadata validation failed"
 KUBO_VERSION=${META[0]}; KUBO_REPO_VERSION=${META[1]}; IMAGE=${META[2]}; EXPECTED_INDEX_DIGEST=${META[3]}
 REQUESTED_PLATFORM=${META[4]}; PROFILE=${META[5]}; EXPECTED_V1=${META[6]}; EXPECTED_V2=${META[7]}
 KEY_NAME=${META[8]}; KEY_TYPE=${META[9]}; IPNS_LIFETIME=${META[10]}; IPNS_TTL=${META[11]}
 V1_SEQUENCE=${META[12]}; V2_SEQUENCE=${META[13]}; EOL_BRACKET_TOLERANCE=${META[14]}
 DHT_RECORD_COUNT=${META[15]}; DHT_TIMEOUT=${META[16]}; RESOLVE_ATTEMPTS=${META[17]}
-RESOLVE_RETRY_DELAY=${META[18]}; EXPECTED_IMPORT_JSON=${META[19]}
+RESOLVE_RETRY_DELAY=${META[18]}; HTTP_REQUEST_TIMEOUT=${META[19]}; EXPECTED_IMPORT_JSON=${META[20]}
 read -r SCRIPT_SHA256 _ < <(sha256sum "$SCRIPT_FILE")
 read -r BASE_MANIFEST_SHA256 _ < <(sha256sum "$BASE_MANIFEST")
 read -r IPNS_MANIFEST_SHA256 _ < <(sha256sum "$IPNS_MANIFEST")
@@ -95,8 +96,16 @@ declare -A NODE=(
   [replica2]="meshkeep-ipns-replica2-$RUN_ID"
 )
 ROLES=(publisher-a publisher-b replica1 replica2)
-declare -A CONTAINER_ID=() REPO_VERSION=() PEER=()
+REPLICA_ROLES=(replica1 replica2)
+declare -A CONTAINER_ID=() REPO_VERSION=() PEER=() LOCAL_RPC_VALID=() ABSENT_GATEWAY_RECORD_READY=()
+declare -A GATEWAY_IPFS_V1_COUNT=([replica1]=0 [replica2]=0)
+declare -A GATEWAY_IPFS_V2_COUNT=([replica1]=0 [replica2]=0)
+declare -A GATEWAY_IPNS_V2_COUNT=([replica1]=0 [replica2]=0)
 NETWORK_ID=""; CLEANUP_VERIFIED=false; DOCKER_QUERY_FAILED=false; TRANSFER_CLEANED=false
+LOOPBACK_BINDS_VERIFIED=false; NO_FETCH_VERIFIED=false; PUBLISHERS_OFFLINE_VERIFIED=false
+GATEWAY_LOCAL_CONTENT_VERIFIED=false; RPC_BOUNDARY_VERIFIED=false
+LOCAL_RPC_POST_COUNT=0; CROSS_RPC_BOUNDARY_COUNT=0; CROSS_RPC_REFUSAL_COUNT=0; CROSS_RPC_INNER_TIMEOUT_COUNT=0
+ABSENT_RECORD_HTTP_200_COUNT=0; ABSENT_TARGET_HTTP_412_COUNT=0; HTTP_PROBE_INDEX=0
 MUTATED_INSPECT_INVALID=false; MUTATED_NAME_PUT_REJECTED=false; ROUTING_POSTCONDITION_VALID=false
 STALE_V1_VALID_UNEXPIRED=false; STALE_REPLAY_REJECTED=false; STALE_POSTCONDITION_VALID=false
 MALFORMED_INSPECT_REJECTED=false; MALFORMED_PUT_REJECTED=false
@@ -293,6 +302,7 @@ PY
 import json,sys
 with open(sys.argv[1]) as h: c=json.load(h)
 checks=[
+ ("Addresses.API",c["Addresses"].get("API"),"/ip4/127.0.0.1/tcp/5001"),("Addresses.Gateway",c["Addresses"].get("Gateway"),"/ip4/127.0.0.1/tcp/8080"),
  ("Routing.Type",c["Routing"].get("Type"),"dhtserver"),("Routing.DelegatedRouters",c["Routing"].get("DelegatedRouters"),[]),("Provide.Enabled",c["Provide"].get("Enabled"),False),
  ("AutoConf.Enabled",c["AutoConf"].get("Enabled"),False),("AutoTLS.Enabled",c["AutoTLS"].get("Enabled"),False),("DNS.Resolvers",c["DNS"].get("Resolvers"),{}),
  ("Ipns.DelegatedPublishers",c["Ipns"].get("DelegatedPublishers"),[]),("Ipns.UsePubsub",c["Ipns"].get("UsePubsub"),False),("Discovery.MDNS.Enabled",c["Discovery"]["MDNS"].get("Enabled"),False),
@@ -312,6 +322,8 @@ if c.get("Bootstrap") not in (None,[]): raise SystemExit("isolation config misma
 if len(c["Peering"].get("Peers",[]))!=3: raise SystemExit("peering is not full mesh")
 PY
 done
+LOOPBACK_BINDS_VERIFIED=true
+NO_FETCH_VERIFIED=true
 printf 'Repositories: PASS (4 repos, ten-field profile, private-DHT/isolation policy)\n'
 
 NETWORK_ID=$(docker network create --internal --label com.meshkeep.lab=ipns --label "com.meshkeep.run=$RUN_ID" "$NETWORK")
@@ -334,6 +346,86 @@ for role in "${ROLES[@]}"; do
   [[ $HOST_PORT_STATUS -eq 0 ]] || fail "$role host-port query failed"
   [[ -z "$HOST_PORT_OUTPUT" ]] || fail "$role publishes host ports"
 done
+
+validate_local_rpc() {
+  local role=$1
+  local -a pipeline_status=()
+  set +e
+  timeout -k 5 "$((HTTP_REQUEST_TIMEOUT + 10))" docker exec "${CONTAINER_ID[$role]}" /bin/busybox wget -q -T "$HTTP_REQUEST_TIMEOUT" -O - --post-data '' -Y off http://127.0.0.1:5001/api/v0/id 2> "$DIAGNOSTICS_DIR/$role-local-rpc.err" |
+    python3 -c '
+import json,sys
+try:
+    data=json.load(sys.stdin)
+except Exception:
+    raise SystemExit("local Kubo API response is not valid JSON")
+expected=sys.argv[1]
+required={"ID":str,"PublicKey":str,"Addresses":list,"AgentVersion":str,"Protocols":list}
+if not isinstance(data,dict) or any(not isinstance(data.get(key),kind) for key,kind in required.items()):
+    raise SystemExit("local Kubo API response lacks documented ID fields")
+if data["ID"]!=expected or not data["PublicKey"]:
+    raise SystemExit("local Kubo API identity does not match the captured role identity")
+if any(not isinstance(value,str) for value in data["Addresses"]+data["Protocols"]):
+    raise SystemExit("local Kubo API address/protocol fields are malformed")
+agent_parts=data["AgentVersion"].split("/")
+if len(agent_parts)<2 or agent_parts[:2] != ["kubo","0.42.0"]:
+    raise SystemExit("local Kubo API agent is not kubo/0.42.0")
+' "${PEER[$role]}"
+  pipeline_status=("${PIPESTATUS[@]}")
+  set -e
+  [[ ${#pipeline_status[@]} -eq 2 ]] || fail "$role local RPC pipeline status was incomplete"
+  [[ ${pipeline_status[0]} -eq 0 ]] || fail "$role loopback RPC POST did not complete successfully"
+  [[ ${pipeline_status[1]} -eq 0 ]] || fail "$role loopback RPC response validation failed"
+  LOCAL_RPC_VALID[$role]=true
+  ((LOCAL_RPC_POST_COUNT += 1))
+}
+
+validate_cross_rpc_failure() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import re,sys
+stdout_path,stderr_path,target=sys.argv[1:]
+stdout=open(stdout_path,"rb").read(); stderr=open(stderr_path,"rb").read()
+if stdout: raise SystemExit("cross-container RPC probe unexpectedly wrote a response body")
+if len(stderr)>8192: raise SystemExit("cross-container RPC diagnostic exceeds its bound")
+try: text=stderr.decode("utf-8")
+except UnicodeDecodeError: raise SystemExit("cross-container RPC diagnostic is not UTF-8")
+if re.search(r"(?m)^\s*HTTP/\S+\s+\d{3}(?:\s|$)",text): raise SystemExit("cross-container RPC probe received an HTTP response")
+if re.search(rf"(?m)^Connecting to {re.escape(target)}:5001 \([^\r\n)]+\)\r?$",text) is None: raise SystemExit("cross-container RPC alias was not successfully resolved")
+refused=re.search(r"(?m)^wget: can't connect to remote host \([^\r\n)]+\): Connection refused\r?$",text) is not None
+timed_out=re.search(r"(?m)^wget: download timed out\r?$",text) is not None
+if refused==timed_out: raise SystemExit("cross-container RPC failure was not uniquely classified as a refusal or bounded inner timeout")
+print("connection-refused" if refused else "inner-timeout")
+PY
+}
+
+for role in "${REPLICA_ROLES[@]}"; do validate_local_rpc "$role"; done
+for source in "${REPLICA_ROLES[@]}"; do
+  if [[ "$source" == replica1 ]]; then target=replica2; else target=replica1; fi
+  set +e
+  TARGET_RUNNING=$(timeout -k 5 15 docker inspect --format '{{.State.Running}}' "${CONTAINER_ID[$target]}" 2> "$DIAGNOSTICS_DIR/$source-to-$target-state.err")
+  TARGET_STATE_STATUS=$?
+  set -e
+  [[ $TARGET_STATE_STATUS -eq 0 && "$TARGET_RUNNING" == true ]] || fail "$target is not verifiably running before the cross-container RPC probe"
+  [[ "${LOCAL_RPC_VALID[$target]:-false}" == true ]] || fail "$target local RPC precondition is incomplete"
+  set +e
+  timeout -k 5 "$((HTTP_REQUEST_TIMEOUT + 10))" docker exec "${CONTAINER_ID[$source]}" /bin/busybox wget -T "$HTTP_REQUEST_TIMEOUT" -S -O /dev/null --post-data '' -Y off "http://$target:5001/api/v0/id" > "$DIAGNOSTICS_DIR/$source-cross-rpc.out" 2> "$DIAGNOSTICS_DIR/$source-cross-rpc.err"
+  CROSS_RPC_STATUS=$?
+  set -e
+  [[ $CROSS_RPC_STATUS -eq 1 ]] || fail "$source cross-container RPC probe did not return BusyBox status 1"
+  set +e
+  CROSS_RPC_CLASSIFICATION=$(validate_cross_rpc_failure "$DIAGNOSTICS_DIR/$source-cross-rpc.out" "$DIAGNOSTICS_DIR/$source-cross-rpc.err" "$target")
+  CROSS_RPC_VALIDATION_STATUS=$?
+  set -e
+  [[ $CROSS_RPC_VALIDATION_STATUS -eq 0 ]] || fail "$source cross-container RPC failure was not safely classified"
+  case "$CROSS_RPC_CLASSIFICATION" in
+    connection-refused) ((CROSS_RPC_REFUSAL_COUNT += 1)) ;;
+    inner-timeout) ((CROSS_RPC_INNER_TIMEOUT_COUNT += 1)) ;;
+    *) fail "$source cross-container RPC classification was unexpected" ;;
+  esac
+  ((CROSS_RPC_BOUNDARY_COUNT += 1))
+done
+[[ $LOCAL_RPC_POST_COUNT -eq 2 && $CROSS_RPC_BOUNDARY_COUNT -eq 2 ]] || fail "RPC boundary assertion counts are incomplete"
+RPC_BOUNDARY_VERIFIED=true
+printf 'RPC boundary: PASS (2 local loopback POSTs; 2 same-network no-HTTP failures: %s refused, %s inner-timeout)\n' "$CROSS_RPC_REFUSAL_COUNT" "$CROSS_RPC_INNER_TIMEOUT_COUNT"
 
 role_is_expected() { local candidate=$1; shift; local expected; for expected in "$@"; do [[ "$candidate" == "$expected" ]] && return 0; done; return 1; }
 connect_expected_mesh() {
@@ -493,6 +585,71 @@ run_name_put_rejection() {
   set -e
   [[ $status -eq 1 ]] || fail "$label did not complete with Kubo's semantic rejection status"
   validate_name_put_diagnostic "$DIAGNOSTICS_DIR/$label.out" "$DIAGNOSTICS_DIR/$label.err" "$diagnostic_kind" || fail "$label did not emit the expected bounded Kubo 0.42 diagnostic"
+}
+
+assert_http_200_no_redirect() {
+  local container=$1 url=$2 label=$3 status prefix
+  ((HTTP_PROBE_INDEX += 1))
+  prefix="$DIAGNOSTICS_DIR/http-$HTTP_PROBE_INDEX-$label"
+  set +e
+  timeout -k 5 "$((HTTP_REQUEST_TIMEOUT + 10))" docker exec "$container" /bin/busybox wget -T "$HTTP_REQUEST_TIMEOUT" -S -O /dev/null -Y off "$url" > "$prefix.out" 2> "$prefix.err"
+  status=$?
+  set -e
+  [[ $status -eq 0 ]] || fail "$label gateway request did not complete successfully"
+  python3 - "$prefix.out" "$prefix.err" <<'PY'
+import re,sys
+stdout=open(sys.argv[1],"rb").read(); stderr=open(sys.argv[2],"rb").read()
+if stdout: raise SystemExit("successful gateway status probe unexpectedly wrote stdout")
+if len(stderr)>65536: raise SystemExit("gateway status diagnostic exceeds its bound")
+try: text=stderr.decode("utf-8")
+except UnicodeDecodeError: raise SystemExit("gateway status diagnostic is not UTF-8")
+statuses=re.findall(r"(?m)^\s*HTTP/\S+\s+(\d{3})(?:\s|$)",text)
+if statuses != ["200"]: raise SystemExit("gateway status probe did not return exactly one HTTP 200 without redirects")
+PY
+}
+
+assert_gateway_file() {
+  local role=$1 namespace=$2 root=$3 relative_path=$4 expected_hash=$5 label actual marker extra prefix
+  local -a pipeline_status=()
+  label="$role-$namespace-file"
+  assert_http_200_no_redirect "${CONTAINER_ID[$role]}" "http://127.0.0.1:8080/$namespace/$root/$relative_path" "$label"
+  ((HTTP_PROBE_INDEX += 1))
+  prefix="$DIAGNOSTICS_DIR/http-$HTTP_PROBE_INDEX-$label-hash"
+  set +e
+  timeout -k 5 "$((HTTP_REQUEST_TIMEOUT + 10))" docker exec "${CONTAINER_ID[$role]}" /bin/busybox wget -q -T "$HTTP_REQUEST_TIMEOUT" -O - -Y off "http://127.0.0.1:8080/$namespace/$root/$relative_path" 2> "$prefix.err" |
+    sha256sum > "$prefix.sha256"
+  pipeline_status=("${PIPESTATUS[@]}")
+  set -e
+  [[ ${#pipeline_status[@]} -eq 2 ]] || fail "$label streamed hash pipeline status was incomplete"
+  [[ ${pipeline_status[0]} -eq 0 ]] || fail "$label streamed gateway GET did not complete successfully"
+  [[ ${pipeline_status[1]} -eq 0 ]] || fail "$label host SHA-256 process failed"
+  [[ ! -s "$prefix.err" ]] || fail "$label successful streamed gateway GET emitted diagnostics"
+  read -r actual marker extra < "$prefix.sha256"
+  [[ "$actual" == "$expected_hash" && "$marker" == - && -z "$extra" ]] || fail "$label streamed body hash mismatch"
+}
+
+assert_absent_target_gateway_412() {
+  local role=$1 status prefix
+  [[ "${ABSENT_GATEWAY_RECORD_READY[$role]:-false}" == true ]] || fail "$role absent-target gateway request lacks its record-200 precondition"
+  ((HTTP_PROBE_INDEX += 1))
+  prefix="$DIAGNOSTICS_DIR/http-$HTTP_PROBE_INDEX-$role-absent-target"
+  set +e
+  timeout -k 5 "$((HTTP_REQUEST_TIMEOUT + 10))" docker exec "${CONTAINER_ID[$role]}" /bin/busybox wget -T "$HTTP_REQUEST_TIMEOUT" -S -O /dev/null --header 'Cache-Control: only-if-cached' -Y off "http://127.0.0.1:8080/ipns/$ABSENT_NAME" > "$prefix.out" 2> "$prefix.err"
+  status=$?
+  set -e
+  [[ $status -eq 1 ]] || fail "$role absent-target gateway request did not return BusyBox status 1"
+  python3 - "$prefix.out" "$prefix.err" <<'PY'
+import re,sys
+stdout=open(sys.argv[1],"rb").read(); stderr=open(sys.argv[2],"rb").read()
+if stdout: raise SystemExit("absent-target gateway probe unexpectedly wrote stdout")
+if len(stderr)>65536: raise SystemExit("absent-target gateway diagnostic exceeds its bound")
+try: text=stderr.decode("utf-8")
+except UnicodeDecodeError: raise SystemExit("absent-target gateway diagnostic is not UTF-8")
+statuses=re.findall(r"(?m)^\s*HTTP/\S+\s+(\d{3})(?:\s|$)",text)
+if not statuses or statuses[-1]!="412": raise SystemExit("absent-target gateway probe did not end with HTTP 412")
+if any(status not in {"301","302","303","307","308"} for status in statuses[:-1]): raise SystemExit("absent-target gateway probe had an unclassified preceding HTTP status")
+PY
+  ((ABSENT_TARGET_HTTP_412_COUNT += 1))
 }
 
 IPNS_NAME=$(timeout 30 docker exec "${CONTAINER_ID[publisher-a]}" ipfs key gen --type="$KEY_TYPE" "$KEY_NAME")
@@ -672,22 +829,64 @@ for role in publisher-a publisher-b; do
   [[ $PUBLISHER_STATE_STATUS -eq 0 && "$PUBLISHER_RUNNING" == false ]] || fail "$role is not verifiably offline"
 done
 for role in replica1 replica2; do verify_recursive_pin "${CONTAINER_ID[$role]}" "$V1" "$V1_REFS" "$role-final-v1"; verify_files "${CONTAINER_ID[$role]}" v1 "$V1"; verify_recursive_pin "${CONTAINER_ID[$role]}" "$V2" "$V2_REFS" "$role-final-v2"; verify_files "${CONTAINER_ID[$role]}" v2 "$V2"; done
+PUBLISHERS_OFFLINE_VERIFIED=true
 printf 'Publishers offline: PASS (both replicas retain/read complete v1 and v2 graphs)\n'
+
+for role in "${REPLICA_ROLES[@]}"; do
+  OFFLINE_V2_RECORD="$RECORDS_DIR/$role-offline-v2.record"
+  capture_record "${CONTAINER_ID[$role]}" "$IPNS_NAME" "$OFFLINE_V2_RECORD"
+  inspect_record "${CONTAINER_ID[$role]}" "$IPNS_NAME" "$OFFLINE_V2_RECORD" "$TMP_ROOT/$role-offline-v2.inspect.json" "$V2" "$V2_SEQUENCE" "$V2_PUBLICATION_STARTED" "$V2_PUBLICATION_ENDED" false
+  cmp -s "$RECORDS_DIR/$role-v2.record" "$OFFLINE_V2_RECORD" || fail "$role offline selected IPNS record is not byte-identical valid v2"
+  while IFS=$'\t' read -r version relative_path expected_hash; do
+    if [[ "$version" == v1 ]]; then
+      assert_gateway_file "$role" ipfs "$V1" "$relative_path" "$expected_hash"
+      GATEWAY_IPFS_V1_COUNT[$role]=$((GATEWAY_IPFS_V1_COUNT[$role] + 1))
+    else
+      assert_gateway_file "$role" ipfs "$V2" "$relative_path" "$expected_hash"
+      GATEWAY_IPFS_V2_COUNT[$role]=$((GATEWAY_IPFS_V2_COUNT[$role] + 1))
+      assert_gateway_file "$role" ipns "$IPNS_NAME" "$relative_path" "$expected_hash"
+      GATEWAY_IPNS_V2_COUNT[$role]=$((GATEWAY_IPNS_V2_COUNT[$role] + 1))
+    fi
+  done < "$FIXTURE_RECORDS"
+  assert_http_200_no_redirect "${CONTAINER_ID[$role]}" "http://127.0.0.1:8080/ipns/$ABSENT_NAME?format=ipns-record" "$role-absent-record"
+  ABSENT_GATEWAY_RECORD_READY[$role]=true
+  ((ABSENT_RECORD_HTTP_200_COUNT += 1))
+  assert_absent_target_gateway_412 "$role"
+done
+for role in "${REPLICA_ROLES[@]}"; do
+  [[ ${GATEWAY_IPFS_V1_COUNT[$role]} -eq 4 ]] || fail "$role /ipfs v1 gateway assertion count mismatch"
+  [[ ${GATEWAY_IPFS_V2_COUNT[$role]} -eq 4 ]] || fail "$role /ipfs v2 gateway assertion count mismatch"
+  [[ ${GATEWAY_IPNS_V2_COUNT[$role]} -eq 4 ]] || fail "$role /ipns v2 gateway assertion count mismatch"
+done
+[[ $ABSENT_RECORD_HTTP_200_COUNT -eq 2 && $ABSENT_TARGET_HTTP_412_COUNT -eq 2 ]] || fail "unavailable-target gateway assertion counts are incomplete"
+[[ "$NO_FETCH_VERIFIED" == true && "$PUBLISHERS_OFFLINE_VERIFIED" == true ]] || fail "local-only gateway preconditions are incomplete"
+GATEWAY_LOCAL_CONTENT_VERIFIED=true
+printf 'Replica gateways: PASS (per replica: 4 /ipfs v1, 4 /ipfs v2, 4 /ipns v2 HTTP-200/hash checks; absent record 200 then target 412; publishers offline, NoFetch)\n'
 
 for observation in "$MUTATED_INSPECT_INVALID" "$MUTATED_NAME_PUT_REJECTED" "$ROUTING_POSTCONDITION_VALID" "$STALE_V1_VALID_UNEXPIRED" "$STALE_REPLAY_REJECTED" "$STALE_POSTCONDITION_VALID" "$MALFORMED_INSPECT_REJECTED" "$MALFORMED_PUT_REJECTED" "$ABSENT_TARGET_RESOLVED" "$ABSENT_TARGET_PIN_FAILED" "$ABSENT_TARGET_PIN_ABSENT"; do
   [[ "$observation" == true ]] || fail "a required negative-path assertion is incomplete"
 done
 [[ "$TRANSFER_CLEANED" == true ]] || fail "key-transfer cleanup assertion is incomplete"
+[[ "$LOOPBACK_BINDS_VERIFIED" == true && "$RPC_BOUNDARY_VERIFIED" == true && "$GATEWAY_LOCAL_CONTENT_VERIFIED" == true ]] || fail "gateway/RPC boundary assertions are incomplete"
 verify_successful_cleanup
 
 if [[ -n "$WRITE_RESULTS_INPUT" ]]; then
   [[ "$WRITE_RESULTS_INPUT" == /* ]] && WRITE_RESULTS_TARGET=$WRITE_RESULTS_INPUT || WRITE_RESULTS_TARGET="$REPO_ROOT/$WRITE_RESULTS_INPUT"
-  python3 - "$WRITE_RESULTS_TARGET" "$IPNS_NAME" "$V1" "$V2" "$V1_BLOCKS" "$V2_BLOCKS" "$IMAGE" "$EXPECTED_INDEX_DIGEST" "$REQUESTED_PLATFORM" "$ACTUAL_KUBO_VERSION" "$KUBO_REPO_VERSION" "$ENGINE_IMAGE_ID" "$DESCRIPTOR_STATUS" "$ACTUAL_IMAGE_OS" "$ACTUAL_IMAGE_ARCH" "$SCRIPT_SHA256" "$BASE_MANIFEST_SHA256" "$IPNS_MANIFEST_SHA256" "${DOCKER_META[@]}" "$DOCKER_STORAGE_DRIVER" "$BASH_VERSION" "$(python3 --version | tr -d '\n')" "$(sha256sum --version | python3 -c 'import sys; print(sys.stdin.readline().split()[-1])')" "$MUTATED_ROUTING_STATUS" "$EOL_BRACKET_TOLERANCE" "$MUTATED_INSPECT_INVALID" "$MUTATED_NAME_PUT_REJECTED" "$ROUTING_POSTCONDITION_VALID" "$STALE_V1_VALID_UNEXPIRED" "$STALE_REPLAY_REJECTED" "$STALE_POSTCONDITION_VALID" "$MALFORMED_INSPECT_REJECTED" "$MALFORMED_PUT_REJECTED" "$ABSENT_TARGET_RESOLVED" "$ABSENT_TARGET_PIN_FAILED" "$ABSENT_TARGET_PIN_ABSENT" <<'PY'
+  python3 - "$WRITE_RESULTS_TARGET" "$IPNS_NAME" "$V1" "$V2" "$V1_BLOCKS" "$V2_BLOCKS" "$IMAGE" "$EXPECTED_INDEX_DIGEST" "$REQUESTED_PLATFORM" "$ACTUAL_KUBO_VERSION" "$KUBO_REPO_VERSION" "$ENGINE_IMAGE_ID" "$DESCRIPTOR_STATUS" "$ACTUAL_IMAGE_OS" "$ACTUAL_IMAGE_ARCH" "$SCRIPT_SHA256" "$BASE_MANIFEST_SHA256" "$IPNS_MANIFEST_SHA256" "${DOCKER_META[@]}" "$DOCKER_STORAGE_DRIVER" "$BASH_VERSION" "$(python3 --version | tr -d '\n')" "$(sha256sum --version | python3 -c 'import sys; print(sys.stdin.readline().split()[-1])')" "$MUTATED_ROUTING_STATUS" "$EOL_BRACKET_TOLERANCE" "$MUTATED_INSPECT_INVALID" "$MUTATED_NAME_PUT_REJECTED" "$ROUTING_POSTCONDITION_VALID" "$STALE_V1_VALID_UNEXPIRED" "$STALE_REPLAY_REJECTED" "$STALE_POSTCONDITION_VALID" "$MALFORMED_INSPECT_REJECTED" "$MALFORMED_PUT_REJECTED" "$ABSENT_TARGET_RESOLVED" "$ABSENT_TARGET_PIN_FAILED" "$ABSENT_TARGET_PIN_ABSENT" "$HTTP_REQUEST_TIMEOUT" "$LOOPBACK_BINDS_VERIFIED" "$NO_FETCH_VERIFIED" "$PUBLISHERS_OFFLINE_VERIFIED" "$GATEWAY_LOCAL_CONTENT_VERIFIED" "$RPC_BOUNDARY_VERIFIED" "${GATEWAY_IPFS_V1_COUNT[replica1]}" "${GATEWAY_IPFS_V2_COUNT[replica1]}" "${GATEWAY_IPNS_V2_COUNT[replica1]}" "${GATEWAY_IPFS_V1_COUNT[replica2]}" "${GATEWAY_IPFS_V2_COUNT[replica2]}" "${GATEWAY_IPNS_V2_COUNT[replica2]}" "$ABSENT_RECORD_HTTP_200_COUNT" "$ABSENT_TARGET_HTTP_412_COUNT" "$LOCAL_RPC_POST_COUNT" "$CROSS_RPC_BOUNDARY_COUNT" "$CROSS_RPC_REFUSAL_COUNT" "$CROSS_RPC_INNER_TIMEOUT_COUNT" <<'PY'
 import datetime,errno,json,os,sys,tempfile
-(path,name,v1,v2,v1blocks,v2blocks,image,digest,platform,kubo,repo_version,image_id,descriptor,image_os,image_arch,runner_hash,base_hash,ipns_hash,dcv,dca,dcos,dcarch,dsv,dsa,dsos,dsarch,storage,bash_version,python_version,coreutils,mutated_routing_status,eol_tolerance,mutated_inspect,mutated_name_put,routing_postcondition,stale_precondition,stale_rejected,stale_postcondition,malformed_inspect,malformed_put,absent_resolved,absent_pin_failed,absent_pin_absent)=sys.argv[1:]
+(path,name,v1,v2,v1blocks,v2blocks,image,digest,platform,kubo,repo_version,image_id,descriptor,image_os,image_arch,runner_hash,base_hash,ipns_hash,dcv,dca,dcos,dcarch,dsv,dsa,dsos,dsarch,storage,bash_version,python_version,coreutils,mutated_routing_status,eol_tolerance,mutated_inspect,mutated_name_put,routing_postcondition,stale_precondition,stale_rejected,stale_postcondition,malformed_inspect,malformed_put,absent_resolved,absent_pin_failed,absent_pin_absent,http_timeout,loopback_binds,no_fetch,publishers_offline,gateway_local,rpc_boundary,r1_ipfs_v1,r1_ipfs_v2,r1_ipns_v2,r2_ipfs_v1,r2_ipfs_v2,r2_ipns_v2,absent_record_200,absent_target_412,local_rpc_posts,cross_rpc_boundary,cross_rpc_refusals,cross_rpc_inner_timeouts)=sys.argv[1:]
 def observed(value):
  if value!="true": raise SystemExit("result assertion was not completed")
  return True
+def exact_count(value,expected):
+ count=int(value)
+ if count!=expected: raise SystemExit("result assertion count is incomplete")
+ return count
+per_replica=[]
+for counts in ((r1_ipfs_v1,r1_ipfs_v2,r1_ipns_v2),(r2_ipfs_v1,r2_ipfs_v2,r2_ipns_v2)):
+ per_replica.append({"ipfs_v1_http_200_and_hash_checks":exact_count(counts[0],4),"ipfs_v2_http_200_and_hash_checks":exact_count(counts[1],4),"ipns_v2_http_200_and_hash_checks":exact_count(counts[2],4)})
+cross_boundary_count=exact_count(cross_rpc_boundary,2); cross_refusal_count=int(cross_rpc_refusals); cross_inner_timeout_count=int(cross_rpc_inner_timeouts)
+if min(cross_refusal_count,cross_inner_timeout_count)<0 or cross_refusal_count+cross_inner_timeout_count!=cross_boundary_count: raise SystemExit("cross-container RPC classifications are incomplete")
 data={
  "format":"meshkeep-ipns-key-transfer-lab-result-v1","result":"pass","verified_on":datetime.datetime.now(datetime.timezone.utc).date().isoformat(),
  "public_ipns_name":name,
@@ -695,6 +894,8 @@ data={
  "ipns":{"same_name_v1_v2":True,"replica_signature_validation":{"v1":True,"v2":True},"ttl":"1s","ttl_nanoseconds":1_000_000_000,"lifetime":"10m","publication_eol_bracket_tolerance_seconds":int(eol_tolerance),"cache_bypass":True,"raw_records_temporarily_persisted_owner_only":True,"raw_records_removed_before_result_finalization":True,"raw_records_excluded_from_result":True},
  "key_transfer":{"format":"libp2p-protobuf-cleartext","key_name_continuity":True,"publisher_node_identities_distinct":True,"original_key_removed_after_successful_key_listing":True,"transfer_file_cleaned":True,"cleartext_key_temporarily_persisted_owner_only":True,"cleartext_key_removed_before_result_finalization":True,"cleartext_key_excluded_from_result":True,"ordinary_deletion_is_secure_erasure":False,"disposable_key":True},
  "replicas":{"count":2,"v1_complete_graph_and_content":True,"v1_with_publisher_a_offline":True,"v2_complete_graph_and_content":True,"both_versions_with_both_publishers_offline":True},
+ "gateway_http":{"per_replica":per_replica,"publishers_offline":observed(publishers_offline),"gateway_bind_loopback_only":observed(loopback_binds),"no_fetch":observed(no_fetch),"local_content_served_with_no_fetch":observed(gateway_local),"request_timeout_seconds":int(http_timeout),"absent_ipns_record_http_200_checks":exact_count(absent_record_200,2),"absent_target_final_http_412_checks":exact_count(absent_target_412,2)},
+ "rpc_boundary":{"api_bind_loopback_only":observed(loopback_binds),"local_loopback_post_checks":exact_count(local_rpc_posts,2),"cross_container_no_http_refusal_or_inner_timeout_checks":cross_boundary_count,"cross_container_name_resolution_checks":cross_boundary_count,"observed_connection_refusals":cross_refusal_count,"observed_bounded_inner_timeouts":cross_inner_timeout_count,"host_port_queries_completed":4,"host_ports_published":[],"verified":observed(rpc_boundary)},
  "negative_observations":{"mutated_signature_v2_inspect_completed_with_validation_false":observed(mutated_inspect),"mutated_signature_v2_name_put_semantic_rejection":observed(mutated_name_put),"stale_v1_precondition_valid_and_unexpired":observed(stale_precondition),"stale_v1_name_put_sequence_conflict":observed(stale_rejected),"stale_replay_selected_record_byte_identical_valid_v2":observed(stale_postcondition),"malformed_inspect_semantic_rejection":observed(malformed_inspect),"malformed_name_put_semantic_rejection":observed(malformed_put),"absent_target_resolved":observed(absent_resolved),"absent_target_recursive_pin_bounded_failure":observed(absent_pin_failed),"absent_target_missing_from_successful_complete_recursive_pin_listing":observed(absent_pin_absent)},
  "post_routing_put_selected_record_observation":{"routing_put_status":int(mutated_routing_status),"selected_record_byte_identical_valid_v2":observed(routing_postcondition)},
  "isolation":{"nodes":4,"routing_type":"dhtserver","bounded_closest_peer_samples_only_contained_lab_ids":True,"exact_unique_active_mesh_peer_sets_verified":True,"initial_expected_active_mesh_roles":4,"post_transfer_expected_active_mesh_roles":3,"configured_full_mesh_peering":True,"docker_internal_network":True,"docker_internal_dns_used_for_dns4_aliases":True,"host_ports_published":[],"host_port_queries_completed":4,"bootstrap_peers_per_node":0,"delegated_routers":False,"delegated_publishers":False,"kubo_custom_dns_resolvers_configured":False,"autoconf":False,"autotls":False,"mdns":False,"ipns_pubsub":False,"nat_port_mapping":False,"hole_punching":False,"relays":False,"http_retrieval":False,"gateway_fetch":False,"gateway_dnslink":False,"gateway_routing_api":False,"swarm_bandwidth_metrics":False,"telemetry":False,"providing":False},
@@ -702,7 +903,7 @@ data={
  "kubo":{"version":kubo,"repository_version":int(repo_version),"image":image,"index_digest":digest,"verified_repo_digest":image,"requested_platform":platform,"actual_platform":{"os":image_os,"architecture":image_arch},"engine_image_id":image_id,"local_descriptor_status":descriptor},
  "profile":{"name":"unixfs-v1-2025","ten_required_fields_verified_on_four_repositories":True},
  "provenance":{"inputs":{"run_ipns_lab_sha256":runner_hash,"immutable_manifest_sha256":base_hash,"ipns_manifest_sha256":ipns_hash},"docker":{"client":{"version":dcv,"api_version":dca,"os":dcos,"architecture":dcarch},"server":{"version":dsv,"api_version":dsa,"os":dsos,"architecture":dsarch,"storage_driver":storage}},"tools":{"bash":bash_version,"python":python_version,"coreutils":coreutils}},
- "limitations":["All four nodes ran as containers on one host; this is not independent-machine or independent-operator evidence.","The four-node private LAN DHT checks are bounded closest-peer samples plus Docker-internal/config isolation, not representative routing-table membership, propagation, scale, or public-DHT behavior.","Kubo native IPNS sequence ordering is observed here; Meshkeep release version, freshness, rollback, quorum, compatibility, resource-limit, and synchronization-atomicity semantics remain unspecified.","Cleartext key export is suitable only for this disposable lab procedure; temporary owner-only persistence and ordinary file deletion are not secure erasure.","A status-zero routing put is only paired with a subsequent byte-identical valid-v2 selected-record observation; no rejection, storage absence, or non-propagation is claimed.","No public routing, provider announcement, gateway HTTP access, interrupted synchronization, key rotation, revocation, or compromise recovery was tested."]}
+ "limitations":["All four nodes ran as containers on one host; this is not independent-machine or independent-operator evidence.","The four-node private LAN DHT checks are bounded closest-peer samples plus Docker-internal/config isolation, not representative routing-table membership, propagation, scale, or public-DHT behavior.","Kubo native IPNS sequence ordering is observed here; Meshkeep release version, freshness, rollback, quorum, compatibility, resource-limit, and synchronization-atomicity semantics remain unspecified.","Cleartext key export is suitable only for this disposable lab procedure; temporary owner-only persistence and ordinary file deletion are not secure erasure.","A status-zero routing put is only paired with a subsequent byte-identical valid-v2 selected-record observation; no rejection, storage absence, or non-propagation is claimed.","Loopback gateway serving and same-network API refusal were tested only inside same-host containers; independent-host gateway URLs, firewall and host-boundary behavior, public gateway access, and interrupted synchronization remain untested.","No public routing, provider announcement, key rotation, revocation, or compromise recovery was tested."]}
 directory=os.path.dirname(os.path.abspath(path)); os.makedirs(directory,mode=0o700,exist_ok=True); temporary=None
 try:
  fd,temporary=tempfile.mkstemp(dir=directory,prefix=f".{os.path.basename(path)}.",suffix=".tmp")
