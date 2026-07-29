@@ -11,9 +11,9 @@ operator CLI, and future replica policy.
 
 The current repository is an architecture-validation scaffold rather than a working publisher
 or replicator. It contains protocol types and constants, a minimal CLI, a draft unsigned manifest
-schema, and a reproducible one-host Kubo lab for the immutable-content subset. Signed IPNS
-updates, key transfer, runtime protocol validation, synchronization, independent-host proof, a
-replicator, and a desktop application are not implemented.
+schema, an immutable-content Kubo lab, and a separate one-host native-Kubo signed-IPNS/key-transfer
+precursor. Runtime Meshkeep protocol validation, automated synchronization, independent-host
+proof, a replicator, and a desktop application are not implemented.
 
 ## System entry points
 
@@ -21,6 +21,7 @@ replicator, and a desktop application are not implemented.
 - `packages/cli/src/index.ts`: side-effect-free, importable CLI assembly and public helpers.
 - `packages/cli/src/bin.ts`: unguarded `meshkeep` executable entry point.
 - `examples/lab/run-lab.sh`: manual Docker/Kubo integration workflow and evidence generator.
+- `examples/lab/run-ipns-lab.sh`: four-node private-DHT signed-IPNS/key-transfer precursor and evidence generator.
 - `spec/manifest-v1.schema.json`: draft structural contract for an unsigned deployment manifest.
 - `package.json`: workspace scripts, toolchain versions, and aggregate `pnpm check` pipeline.
 - `scripts/smoke-artifacts.mjs`: built and packed/offline-installed package release-path smoke test.
@@ -37,13 +38,16 @@ specification ──> @meshkeep/protocol ──> @meshkeep/cli
 
 fixture bytes + pinned Kubo platform/index/import profile
        └──> examples/lab/run-lab.sh ──> CIDs, recursive pins, verified cleanup, and bounded evidence
+       └──> examples/lab/run-ipns-lab.sh ──> direct Kubo 0.42 signed-name/key-transfer/semantic-negative observations
 ```
 
 - Protocol rules flow outward from `spec/` and `@meshkeep/protocol`; presentation and
   orchestration layers must not reimplement them.
-- The current Kubo lab is deliberately standalone and does not exercise the TypeScript protocol
-  or CLI packages. It proves deterministic import, complete recursive retention, and
-  origin-offline reads only.
+- Both Kubo labs are deliberately standalone and do not exercise the TypeScript protocol or CLI
+  packages. The immutable lab proves deterministic import, complete recursive retention, and
+  origin-offline reads. The IPNS precursor additionally observes native Kubo signed updates,
+  disposable key transfer, exact inspect/diagnostic behavior, and bounded failure paths on one
+  host without defining Meshkeep policy.
 - No Meshkeep-operated gateway, resolver, pinning service, telemetry collector, coordinator, or
   canonical HTTP origin participates in correctness.
 - Wire formats, signing inputs, identity, ordering, IPNS mapping, compatibility, and trust changes
@@ -83,10 +87,13 @@ pnpm check
   └── pnpm smoke:artifacts
 ```
 
-The Docker/Kubo lab is manual and is not part of `pnpm check` or pull-request CI. Its result v2 is
+The Docker/Kubo labs are manual and are not part of `pnpm check` or pull-request CI. Immutable result v2 is
 made atomically visible with `os.replace` only after status-preserving global/name/label queries
 verify captured resources and the temporary root absent. It records sanitized input/environment
-provenance without expanding the lab's claim. Generated
+provenance without expanding the lab's claim. IPNS result v1 uses the same fail-closed boundary
+after four-node and owner-only key/raw-record/diagnostic cleanup. It records bounded closest-peer
+samples only as booleans, distinguishes routing-put status from the subsequent selected-record
+observation, and excludes private key material, raw records, diagnostics, and network identities. Generated
 `dist/`, dependency directories, and lab results are not source entry points. The hard MVP is not
 complete until signed-name continuity, key migration, independent environments, complete graph
 retention, origin shutdown, gateway access, and required negative paths have reproducible evidence.

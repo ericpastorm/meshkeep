@@ -1,0 +1,24 @@
+{
+  "format": "meshkeep-ipns-key-transfer-lab-v1",
+  "immutable_manifest": "manifest.json",
+  "network": {
+    "dht_record_count": 4,
+    "dht_timeout": "20s",
+    "resolve_attempts": 8,
+    "resolve_retry_delay_seconds": 2
+  },
+  "ipns": {
+    "key_name": "meshkeep-publisher",
+    "key_type": "ed25519",
+    "lifetime": "10m",
+    "ttl": "1s",
+    "eol_bracket_tolerance_seconds": 2,
+    "v1_sequence": 0,
+    "v2_sequence": 1
+  },
+  "expectations": {
+    "reachable_blocks_per_version": 8,
+    "replicas": 2,
+    "publishers": 2
+  }
+}

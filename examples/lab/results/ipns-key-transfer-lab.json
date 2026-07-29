@@ -1,0 +1,163 @@
+{
+  "cleanup": {
+    "container_ids_removed": 4,
+    "docker_queries_verified": true,
+    "network_id_removed": true,
+    "owner_only_raw_records_removed": true,
+    "owner_only_transfer_artifacts_removed": true,
+    "resource_names_absent": true,
+    "run_labels_absent": true,
+    "temporary_root_absent": true,
+    "verified": true
+  },
+  "format": "meshkeep-ipns-key-transfer-lab-result-v1",
+  "ipns": {
+    "cache_bypass": true,
+    "lifetime": "10m",
+    "publication_eol_bracket_tolerance_seconds": 2,
+    "raw_records_excluded_from_result": true,
+    "raw_records_removed_before_result_finalization": true,
+    "raw_records_temporarily_persisted_owner_only": true,
+    "replica_signature_validation": {
+      "v1": true,
+      "v2": true
+    },
+    "same_name_v1_v2": true,
+    "ttl": "1s",
+    "ttl_nanoseconds": 1000000000
+  },
+  "isolation": {
+    "autoconf": false,
+    "autotls": false,
+    "bootstrap_peers_per_node": 0,
+    "bounded_closest_peer_samples_only_contained_lab_ids": true,
+    "configured_full_mesh_peering": true,
+    "delegated_publishers": false,
+    "delegated_routers": false,
+    "docker_internal_dns_used_for_dns4_aliases": true,
+    "docker_internal_network": true,
+    "exact_unique_active_mesh_peer_sets_verified": true,
+    "gateway_dnslink": false,
+    "gateway_fetch": false,
+    "gateway_routing_api": false,
+    "hole_punching": false,
+    "host_port_queries_completed": 4,
+    "host_ports_published": [],
+    "http_retrieval": false,
+    "initial_expected_active_mesh_roles": 4,
+    "ipns_pubsub": false,
+    "kubo_custom_dns_resolvers_configured": false,
+    "mdns": false,
+    "nat_port_mapping": false,
+    "nodes": 4,
+    "post_transfer_expected_active_mesh_roles": 3,
+    "providing": false,
+    "relays": false,
+    "routing_type": "dhtserver",
+    "swarm_bandwidth_metrics": false,
+    "telemetry": false
+  },
+  "key_transfer": {
+    "cleartext_key_excluded_from_result": true,
+    "cleartext_key_removed_before_result_finalization": true,
+    "cleartext_key_temporarily_persisted_owner_only": true,
+    "disposable_key": true,
+    "format": "libp2p-protobuf-cleartext",
+    "key_name_continuity": true,
+    "ordinary_deletion_is_secure_erasure": false,
+    "original_key_removed_after_successful_key_listing": true,
+    "publisher_node_identities_distinct": true,
+    "transfer_file_cleaned": true
+  },
+  "kubo": {
+    "actual_platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "engine_image_id": "sha256:b9bd00aa321ec901558e5019316a3f2471137fda0483f2478d16872f19b299f1",
+    "image": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "index_digest": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "local_descriptor_status": "unavailable",
+    "repository_version": 18,
+    "requested_platform": "linux/amd64",
+    "verified_repo_digest": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "version": "0.42.0"
+  },
+  "limitations": [
+    "All four nodes ran as containers on one host; this is not independent-machine or independent-operator evidence.",
+    "The four-node private LAN DHT checks are bounded closest-peer samples plus Docker-internal/config isolation, not representative routing-table membership, propagation, scale, or public-DHT behavior.",
+    "Kubo native IPNS sequence ordering is observed here; Meshkeep release version, freshness, rollback, quorum, compatibility, resource-limit, and synchronization-atomicity semantics remain unspecified.",
+    "Cleartext key export is suitable only for this disposable lab procedure; temporary owner-only persistence and ordinary file deletion are not secure erasure.",
+    "A status-zero routing put is only paired with a subsequent byte-identical valid-v2 selected-record observation; no rejection, storage absence, or non-propagation is claimed.",
+    "No public routing, provider announcement, gateway HTTP access, interrupted synchronization, key rotation, revocation, or compromise recovery was tested."
+  ],
+  "negative_observations": {
+    "absent_target_missing_from_successful_complete_recursive_pin_listing": true,
+    "absent_target_recursive_pin_bounded_failure": true,
+    "absent_target_resolved": true,
+    "malformed_inspect_semantic_rejection": true,
+    "malformed_name_put_semantic_rejection": true,
+    "mutated_signature_v2_inspect_completed_with_validation_false": true,
+    "mutated_signature_v2_name_put_semantic_rejection": true,
+    "stale_replay_selected_record_byte_identical_valid_v2": true,
+    "stale_v1_name_put_sequence_conflict": true,
+    "stale_v1_precondition_valid_and_unexpired": true
+  },
+  "post_routing_put_selected_record_observation": {
+    "routing_put_status": 0,
+    "selected_record_byte_identical_valid_v2": true
+  },
+  "profile": {
+    "name": "unixfs-v1-2025",
+    "ten_required_fields_verified_on_four_repositories": true
+  },
+  "provenance": {
+    "docker": {
+      "client": {
+        "api_version": "1.55",
+        "architecture": "amd64",
+        "os": "linux",
+        "version": "29.6.2"
+      },
+      "server": {
+        "api_version": "1.55",
+        "architecture": "amd64",
+        "os": "linux",
+        "storage_driver": "overlay2",
+        "version": "29.6.2"
+      }
+    },
+    "inputs": {
+      "immutable_manifest_sha256": "09c9b23033fd4df6197abec7d2e86f4edb8f59a51fd886d4ef331c2a0c6436f3",
+      "ipns_manifest_sha256": "c7adbb782910263af54a57faa9cdec0629072a3cf0186af49742555a18d5eeda",
+      "run_ipns_lab_sha256": "dd4521324814eae484ed5df416348eb309742fb70e0a879e8af72f8553a1bacc"
+    },
+    "tools": {
+      "bash": "5.2.21(1)-release",
+      "coreutils": "9.4",
+      "python": "Python 3.12.3"
+    }
+  },
+  "public_ipns_name": "k51qzi5uqu5diqwy2zslj3vc43bmauodxjfnapkyn8g1l10q0sit5z9t4qtnfn",
+  "replicas": {
+    "both_versions_with_both_publishers_offline": true,
+    "count": 2,
+    "v1_complete_graph_and_content": true,
+    "v1_with_publisher_a_offline": true,
+    "v2_complete_graph_and_content": true
+  },
+  "result": "pass",
+  "verified_on": "2026-07-29",
+  "versions": {
+    "v1": {
+      "reachable_blocks": 8,
+      "root_cid": "bafybeih3ovsytsdcmgcqyl6txyquj5nsd3d2svk3ezczlahga7dfql3mki",
+      "sequence": 0
+    },
+    "v2": {
+      "reachable_blocks": 8,
+      "root_cid": "bafybeiczekoh2tsak4wy6hhuxr7tmmaqpjfrh5yqckq4rzmnavkk6k5hwq",
+      "sequence": 1
+    }
+  }
+}

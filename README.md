@@ -2,7 +2,7 @@
 
 Publish a signed static website version and let volunteer replicas keep it available after the publisher goes offline.
 
-> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, and a reproducible immutable-CID Kubo lab. Signed IPNS publication, key transfer, independent-machine proof, and the hard MVP are not implemented. Do not use Meshkeep for production data or availability.
+> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, a reproducible immutable-CID Kubo lab, and a separate same-host native-Kubo signed-IPNS/key-transfer precursor that recursively pins complete graphs on two replicas. Independent-environment acceptance and the hard MVP remain open, and the protocol/CLI workflows are not implemented. Do not use Meshkeep for production data or availability.
 
 ## What Meshkeep Is
 

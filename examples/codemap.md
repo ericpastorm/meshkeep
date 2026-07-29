@@ -6,7 +6,7 @@
 
 - `demo-site/` is a self-contained page reserved for a future publication test. It is not an input to the current immutable-CID lab.
 - `lab-fixtures/v1/` and `lab-fixtures/v2/` are the two deterministic static directory trees imported by the lab. Each version has four files at the same relative paths.
-- `lab/` owns the runner, its committed expectations, instructions, and generated evidence snapshot.
+- `lab/` owns the immutable runner plus a separate signed-IPNS/key-transfer runner, their non-overlapping committed expectations, instructions, and generated evidence snapshots.
 
 Normative schemas and interoperability fixtures belong under `spec/`, not here. Protocol, CLI, and Kubo lifecycle implementation also remain outside this directory.
 
@@ -21,6 +21,8 @@ Four layers are deliberately coupled:
 3. `lab/run-lab.sh` rejects drift in those inputs and verifies image/repository identity, disabled routing/providing, imports, complete reachable graphs, recursive pins, retrieved bytes, and fail-closed ID/name/label cleanup. All disposable Kubo containers share the unique run labels.
 4. `lab/results/immutable-cid-lab.json` is a sanitized dated v2 snapshot made visible at the post-cleanup `os.replace` commit point, recording bounded image/configuration observations, input and environment provenance, CIDs, reachable-block counts, isolation facts, and limitations.
 
+The Phase 3 path adds `lab/ipns-manifest.json`, `lab/run-ipns-lab.sh`, `lab/IPNS.md`, and `lab/results/ipns-key-transfer-lab.json`. It reuses layer 2 rather than duplicating Kubo/profile/fixture truth, and adds only native IPNS settings, private-DHT/EOL bounds, same-name key-transfer evidence, and negative observations.
+
 Changing fixture bytes, paths, import settings, or Kubo identity can change the release CID and requires all committed expectations and evidence to be reconsidered together. The results file is evidence of one run, not an independent source of protocol truth.
 
 ## Flow
@@ -29,8 +31,10 @@ Changing fixture bytes, paths, import settings, or Kubo identity can change the 
 
 The lab never consumes `demo-site/`, invokes a site build, or mutates fixture content.
 
+The IPNS runner uses four same-host nodes. Publisher A signs sequence-0 v1, two replicas resolve/directly inspect/pin it, and a network-disabled owner-only cleartext transfer moves a disposable named key to stopped publisher B. B signs sequence-1 v2 under the same name; replicas retain both graphs after both publishers stop. Inspect fields, exact one-second TTL, publication-bracketed EOL, semantic status-1 diagnostics, successful complete pin-list absence, and post-routing-put selected-record state bound the negative evidence. Invalid-signature, stale, malformed, and unavailable-target observations are native Kubo behavior, not protocol policy.
+
 ## Integration
 
-The example lab integrates directly with Docker Engine and the pinned Kubo container image. It does not call Meshkeep protocol or CLI packages, use the user's IPFS repository, or require a Meshkeep-operated service. Its Docker network is internal, peers are connected explicitly, and no container ports are published to the host.
+The example lab integrates directly with Docker Engine and the pinned Kubo container image. It does not call Meshkeep protocol or CLI packages, use the user's IPFS repository, or require a Meshkeep-operated service. Its Docker networks are internal, peers are connected explicitly, host-port queries must complete with empty output, and the IPNS runner intentionally uses Docker-internal DNS only for configured `/dns4` role aliases while Kubo custom/public resolvers remain absent.
 
 See `lab/codemap.md` for phase-by-phase control flow, boundaries, outputs, and claim limits.
