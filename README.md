@@ -2,7 +2,7 @@
 
 Publish a signed static website version and let volunteer replicas keep it available after the publisher goes offline.
 
-> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, a reproducible immutable-CID Kubo lab, and a separate same-host native-Kubo signed-IPNS/key-transfer precursor that recursively pins and locally gateway-serves complete graphs on two replicas while checking loopback RPC isolation. Independent-host gateway/firewall acceptance and the hard MVP remain open, and the protocol/CLI workflows are not implemented. Do not use Meshkeep for production data or availability.
+> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, two passing same-host Kubo labs, and an unexecuted four-host operator kit. The signed precursor recursively pins and locally gateway-serves complete graphs on two replicas while checking loopback RPC isolation; the new kit supplies local query/validation helpers with no explicit runtime mutation commands. Local Kubo queries may use established swarm state and affect caches; see the kit runbook for exact caveats. No independent-host run or hard-MVP evidence exists, and the protocol/CLI workflows are not implemented. Do not use Meshkeep for production data or availability.
 
 ## What Meshkeep Is
 
@@ -103,6 +103,8 @@ The separate signed-IPNS precursor adds same-host key transfer, negative paths, 
 ```
 
 See [the lab guide](examples/lab/README.md) and [the signed-IPNS guide](examples/lab/IPNS.md). Neither same-host run supplies independent-environment hard-MVP evidence.
+
+The [four-host kit](examples/lab/four-host/README.md) is an unexecuted operator runbook plus local query/validation helpers with no explicit runtime mutation commands. Local Kubo queries may use established swarm state and affect caches; see the runbook for exact caveats. The kit performs no remote orchestration, key transport, network policy, or Docker lifecycle action and does not change roadmap acceptance.
 
 ## Principles
 

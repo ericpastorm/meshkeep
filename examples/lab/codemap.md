@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-This directory contains two reproducible manual Kubo labs: the immutable-content baseline and a separate same-host signed-IPNS/disposable-key-transfer precursor. Together they observe deterministic immutable graphs, native Kubo signed-name continuity, complete replica retention, bounded negative paths, replica-loopback HTTP serving, and same-network no-HTTP RPC failure through connection refusal or bounded inner timeout without defining Meshkeep protocol semantics or claiming independent-machine evidence.
+This directory contains two reproducible same-host Kubo labs plus an unexecuted four-host operator kit. The labs observe deterministic immutable graphs, native Kubo signed-name continuity, complete replica retention, bounded negative paths, replica-loopback HTTP serving, and same-network no-HTTP RPC failure through connection refusal or bounded inner timeout. The kit adds local query/validation helpers with no explicit runtime mutation commands and an operator contract; local Kubo queries may use established swarm state and affect caches, with exact caveats in its runbook. It defines no Meshkeep protocol semantics and claims no independent-machine evidence.
 
 File roles:
 
@@ -14,6 +14,7 @@ File roles:
 - `IPNS.md`: Phase 3 operator procedure, key-handling warning, native Kubo observations, and limitations.
 - `results/immutable-cid-lab.json`: sanitized evidence from the last committed successful run.
 - `results/ipns-key-transfer-lab.json`: sanitized evidence from the last successful signed-IPNS run, when present.
+- `four-host/`: strict not-run operator contract, local query/validation helpers with no explicit runtime mutation commands, evidence template, and folder codemap; see its runbook for established-swarm cache caveats.
 - `../lab-fixtures/{v1,v2}/`: exact immutable input trees; each contains `index.html`, CSS, JavaScript, and a text asset.
 
 ## Design
@@ -38,6 +39,8 @@ The coupling is therefore:
 The optional result includes a wall-clock verification date, but that date does not participate in fixture import or CID identity.
 
 The IPNS runner validates and reuses this complete immutable contract. Its small manifest owns only the disposable key name/type, sequence/lifetime/TTL values, two-second EOL bracket tolerance, bounded resolve/HTTP settings, and expected replica/publisher/block counts. Its result also hashes the runner and both manifests, but never the exported key, raw records, HTTP bodies/headers, or temporary diagnostics.
+
+The four-host manifest references both existing manifests and owns only independent-environment assumptions, roles/phases, port policy, pnet requirement, timeouts, and size bounds. It does not duplicate fixtures, CIDs, profile fields, or IPNS settings. Its committed template is `not-run` with empty observations.
 
 ### Docker and Kubo integration
 

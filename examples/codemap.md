@@ -7,6 +7,7 @@
 - `demo-site/` is a self-contained page reserved for a future publication test. It is not an input to the current immutable-CID lab.
 - `lab-fixtures/v1/` and `lab-fixtures/v2/` are the two deterministic static directory trees imported by the lab. Each version has four files at the same relative paths.
 - `lab/` owns the immutable runner plus a separate signed-IPNS/key-transfer runner, their non-overlapping committed expectations, instructions, and generated evidence snapshots.
+- `lab/four-host/` is an unexecuted operator kit that references those expectations and emits only sanitized local role checks; it is not another runner or result.
 
 Normative schemas and interoperability fixtures belong under `spec/`, not here. Protocol, CLI, and Kubo lifecycle implementation also remain outside this directory.
 
@@ -32,6 +33,8 @@ Changing fixture bytes, paths, import settings, or Kubo identity can change the 
 The lab never consumes `demo-site/`, invokes a site build, or mutates fixture content.
 
 The IPNS runner uses four same-host nodes. Publisher A signs sequence-0 v1, two replicas resolve/directly inspect/pin it, and a network-disabled owner-only cleartext transfer moves a disposable named key to stopped publisher B. B signs sequence-1 v2 under the same name; replicas retain both graphs after both publishers stop. Inspect fields, exact one-second TTL, publication-bracketed EOL, semantic status-1 diagnostics, successful complete pin-list absence, and post-routing-put selected-record state bound the negative evidence. After both publishers stop, BusyBox verifies every fixture file through replica-loopback `/ipfs` and current `/ipns` gateway paths; it also requires absent-record HTTP 200 before cached-only target HTTP 412. Local API POSTs validate each replica identity/version in memory, while cross-container requests prove same-network no-HTTP refusal with successful name resolution. Invalid-signature, stale, malformed, and unavailable-target observations are native Kubo behavior, not protocol policy.
+
+The four-host kit adds no executed flow. Its preflight checks one local environment/repository/image without mutation; its role verifier checks one local phase and can atomically write one sanitized local object. All repository configuration, Docker starts/stops/removal, directed dials, cross-host probes, external key handoff, and aggregate evidence assembly remain explicit operator actions.
 
 ## Integration
 

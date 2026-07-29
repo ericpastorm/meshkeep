@@ -4,6 +4,8 @@ This immutable runner proves the immutable-content subset of the planned Meshkee
 
 The separate same-host signed-IPNS/key-transfer precursor is documented in [IPNS.md](IPNS.md) and run by `run-ipns-lab.sh`. Its settings live in `ipns-manifest.json`; it reuses this immutable manifest rather than duplicating Kubo/profile/fixture ownership. It additionally checks publisher-offline replica-loopback `/ipfs` and `/ipns` serving plus same-network no-HTTP failure—connection refusal or bounded inner timeout—against loopback-bound Kubo RPC.
 
+The [four-host operator kit](four-host/README.md) is intentionally not a third executed lab. It references both manifests, provides local query/validation helpers with no explicit runtime mutation commands, and ships only a `not-run` evidence template. Local Kubo queries may use established swarm state and affect caches; see the kit runbook for exact caveats. Operators must supply four environments, all network/Docker actions, external key handoff, cross-host probes, and manual evidence reconciliation.
+
 ## Proven behavior
 
 A successful run:

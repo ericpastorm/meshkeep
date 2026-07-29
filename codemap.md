@@ -22,6 +22,7 @@ proof, a replicator, and a desktop application are not implemented.
 - `packages/cli/src/bin.ts`: unguarded `meshkeep` executable entry point.
 - `examples/lab/run-lab.sh`: manual Docker/Kubo integration workflow and evidence generator.
 - `examples/lab/run-ipns-lab.sh`: four-node private-DHT signed-IPNS/key-transfer precursor and evidence generator.
+- `examples/lab/four-host/`: unexecuted four-environment operator kit with local query/validation helpers that issue no explicit runtime mutation commands; local Kubo queries may use established swarm state and affect caches, as detailed in its runbook.
 - `spec/manifest-v1.schema.json`: draft structural contract for an unsigned deployment manifest.
 - `package.json`: workspace scripts, toolchain versions, and aggregate `pnpm check` pipeline.
 - `scripts/smoke-artifacts.mjs`: built and packed/offline-installed package release-path smoke test.
@@ -39,6 +40,7 @@ specification ──> @meshkeep/protocol ──> @meshkeep/cli
 fixture bytes + pinned Kubo platform/index/import profile
        └──> examples/lab/run-lab.sh ──> CIDs, recursive pins, verified cleanup, and bounded evidence
        └──> examples/lab/run-ipns-lab.sh ──> signed-name/key-transfer/negative/local-HTTP/RPC-boundary observations
+       └──> examples/lab/four-host/ ──> not-run operator contract + sanitized local-only role checks
 ```
 
 - Protocol rules flow outward from `spec/` and `@meshkeep/protocol`; presentation and
@@ -51,6 +53,9 @@ fixture bytes + pinned Kubo platform/index/import profile
   timeout) on one host without defining Meshkeep policy.
 - No Meshkeep-operated gateway, resolver, pinning service, telemetry collector, coordinator, or
   canonical HTTP origin participates in correctness.
+- The four-host directory does not execute a run. Operators retain responsibility for repository
+  configuration, Docker lifecycle, 12 directed dials, network/firewall policy, external key
+  handoff, cross-host probes, and manual evidence reconciliation.
 - Wire formats, signing inputs, identity, ordering, IPNS mapping, compatibility, and trust changes
   require an issue/RFC, ADR, normative specification and fixtures, downgrade analysis, and tests.
 
@@ -66,6 +71,7 @@ fixture bytes + pinned Kubo platform/index/import profile
 | `spec/` | Draft and future normative schemas, protocol text, and interoperability fixtures. | [spec/codemap.md](spec/codemap.md) |
 | `examples/` | Non-normative demo bytes, deterministic lab fixtures, and manual integration assets. | [examples/codemap.md](examples/codemap.md) |
 | `examples/lab/` | Hardened one-host Docker/Kubo workflow, pinned expectations, and recorded evidence. | [examples/lab/codemap.md](examples/lab/codemap.md) |
+| `examples/lab/four-host/` | Unexecuted independent-environment runbook, strict manifest, evidence template, and local query/validation helpers with no explicit runtime mutation commands; Kubo queries may use established swarm state and affect caches, with exact caveats in the runbook. | [examples/lab/four-host/codemap.md](examples/lab/four-host/codemap.md) |
 
 Supporting areas without separate codemaps:
 
