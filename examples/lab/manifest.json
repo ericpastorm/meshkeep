@@ -1,10 +1,11 @@
 {
-  "format": "meshkeep-immutable-cid-lab-v1",
+  "format": "meshkeep-immutable-cid-lab-v2",
   "kubo": {
     "version": "0.42.0",
     "repo_version": 18,
     "image": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
-    "image_id": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214"
+    "index_digest": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "requested_platform": "linux/amd64"
   },
   "profile": {
     "name": "unixfs-v1-2025",
@@ -13,6 +14,7 @@
       "HashFunction": "sha2-256",
       "UnixFSChunker": "size-1048576",
       "UnixFSDAGLayout": "balanced",
+      "UnixFSDirectoryMaxLinks": 0,
       "UnixFSFileMaxLinks": 1024,
       "UnixFSHAMTDirectoryMaxFanout": 256,
       "UnixFSHAMTDirectorySizeEstimation": "block",

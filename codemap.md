@@ -35,8 +35,8 @@ specification ──> @meshkeep/protocol ──> @meshkeep/cli
        │                    │                    │
        └──── protocol truth ┴── no Kubo yet ───┘
 
-fixture bytes + pinned Kubo/import profile
-       └──> examples/lab/run-lab.sh ──> CIDs, recursive pins, and bounded evidence
+fixture bytes + pinned Kubo platform/index/import profile
+       └──> examples/lab/run-lab.sh ──> CIDs, recursive pins, verified cleanup, and bounded evidence
 ```
 
 - Protocol rules flow outward from `spec/` and `@meshkeep/protocol`; presentation and
@@ -83,7 +83,10 @@ pnpm check
   └── pnpm smoke:artifacts
 ```
 
-The Docker/Kubo lab is manual and is not part of `pnpm check` or pull-request CI. Generated
+The Docker/Kubo lab is manual and is not part of `pnpm check` or pull-request CI. Its result v2 is
+made atomically visible with `os.replace` only after status-preserving global/name/label queries
+verify captured resources and the temporary root absent. It records sanitized input/environment
+provenance without expanding the lab's claim. Generated
 `dist/`, dependency directories, and lab results are not source entry points. The hard MVP is not
 complete until signed-name continuity, key migration, independent environments, complete graph
 retention, origin shutdown, gateway access, and required negative paths have reproducible evidence.

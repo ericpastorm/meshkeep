@@ -1,15 +1,46 @@
 {
-  "format": "meshkeep-immutable-cid-lab-result-v1",
+  "cleanup": {
+    "container_ids_removed": 3,
+    "docker_queries_verified": true,
+    "network_id_removed": true,
+    "resource_names_absent": true,
+    "run_labels_absent": true,
+    "temporary_root_absent": true,
+    "verified": true
+  },
+  "format": "meshkeep-immutable-cid-lab-result-v2",
   "isolation": {
     "bootstrap_peers_per_node": 0,
     "docker_internal_network": true,
     "host_ports_published": [],
-    "temporary_repositories": true
+    "mdns_enabled": false,
+    "providing_enabled": false,
+    "routing_type": "none",
+    "runtime_dht_active": false,
+    "runtime_dht_assertion": "routing service is not a DHT"
   },
   "kubo": {
+    "actual_platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    },
+    "engine_image_id": "sha256:b9bd00aa321ec901558e5019316a3f2471137fda0483f2478d16872f19b299f1",
     "image": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
-    "image_id": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
-    "repo_version": 18,
+    "index_digest": "sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
+    "local_descriptor_observation": null,
+    "local_descriptor_status": "unavailable",
+    "platform_option_supported": {
+      "inspect": true,
+      "pull": true,
+      "run": true
+    },
+    "repository_versions": {
+      "publisher": 18,
+      "replica1": 18,
+      "replica2": 18
+    },
+    "requested_platform": "linux/amd64",
+    "verified_repo_digest": "ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214",
     "version": "0.42.0"
   },
   "limitations": [
@@ -17,7 +48,60 @@
     "publishing-key transfer was not exercised",
     "containers emulate isolated nodes on one Docker host"
   ],
-  "profile": "unixfs-v1-2025",
+  "profile": {
+    "name": "unixfs-v1-2025",
+    "required_fields_verified_per_role": true,
+    "required_import": {
+      "CidVersion": 1,
+      "HashFunction": "sha2-256",
+      "UnixFSChunker": "size-1048576",
+      "UnixFSDAGLayout": "balanced",
+      "UnixFSDirectoryMaxLinks": 0,
+      "UnixFSFileMaxLinks": 1024,
+      "UnixFSHAMTDirectoryMaxFanout": 256,
+      "UnixFSHAMTDirectorySizeEstimation": "block",
+      "UnixFSHAMTDirectorySizeThreshold": "256KiB",
+      "UnixFSRawLeaves": true
+    }
+  },
+  "provenance": {
+    "docker": {
+      "client": {
+        "api_version": "1.55",
+        "architecture": "amd64",
+        "os": "linux",
+        "version": "29.6.2"
+      },
+      "server": {
+        "api_version": "1.55",
+        "architecture": "amd64",
+        "kernel_version": "6.14.0-37-generic",
+        "os": "linux",
+        "storage_driver": "overlay2",
+        "version": "29.6.2"
+      }
+    },
+    "inputs": {
+      "manifest_sha256": "09c9b23033fd4df6197abec7d2e86f4edb8f59a51fd886d4ef331c2a0c6436f3",
+      "run_lab_sha256": "7a5aaa430c7e3261edd79781ae510846660bb3e198a304e67a35ba4e42c9e394"
+    },
+    "runner": {
+      "kernel": {
+        "machine": "x86_64",
+        "release": "6.14.0-37-generic",
+        "sysname": "Linux"
+      },
+      "os": {
+        "id": "ubuntu",
+        "version_id": "24.04"
+      }
+    },
+    "tools": {
+      "bash": "5.2.21(1)-release",
+      "coreutils": "9.4",
+      "python": "3.12.3"
+    }
+  },
   "result": "pass",
   "v1": {
     "independent_import_match": true,
@@ -33,5 +117,5 @@
     "root_cid": "bafybeiczekoh2tsak4wy6hhuxr7tmmaqpjfrh5yqckq4rzmnavkk6k5hwq",
     "v1_retained": true
   },
-  "verified_on": "2026-07-21"
+  "verified_on": "2026-07-26"
 }
