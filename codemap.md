@@ -1,119 +1,47 @@
-# Repository Atlas: Meshkeep
+# Codemap
 
-## Project responsibility
+## Entry Points
 
-Meshkeep is a pre-alpha peer-to-peer static-site publication and replication project. Its
-bounded goal is to publish immutable UnixFS content through a signed mutable name and let
-independently operated replicas retain and serve complete versions after the publisher goes
-offline. Kubo/IPFS owns content addressing, UnixFS storage, transfer, discovery, recursive
-pinning, gateways, and IPNS; Meshkeep owns the protocol model, validation and trust rules,
-operator CLI, and future replica policy.
+- `packages/cli/src/bin.ts` → `runCli()` in `packages/cli/src/index.ts`: the `meshkeep` executable and every command.
+- `packages/protocol/src/index.ts`: the public protocol API, re-exported from one module per concern.
+- `packages/kubo/src/index.ts`: `KuboClient` and `parseApiUrl`.
+- `tests/integration/lifecycle.test.ts`: the end-to-end scenario, running on `tests/integration/cluster.ts`.
 
-The current repository is an architecture-validation scaffold rather than a working publisher
-or replicator. It contains protocol types and constants, a minimal CLI, a draft unsigned manifest
-schema, an immutable-content Kubo lab, and a separate one-host native-Kubo signed-IPNS/key-transfer
-precursor. Runtime Meshkeep protocol validation, automated synchronization, independent-host
-proof, a replicator, and a desktop application are not implemented.
-
-## System entry points
-
-- `packages/protocol/src/index.ts`: public protocol constants and compile-time manifest models.
-- `packages/cli/src/index.ts`: side-effect-free, importable CLI assembly and public helpers.
-- `packages/cli/src/bin.ts`: unguarded `meshkeep` executable entry point.
-- `examples/lab/run-lab.sh`: manual Docker/Kubo integration workflow and evidence generator.
-- `examples/lab/run-ipns-lab.sh`: four-node private-DHT signed-IPNS/key-transfer precursor and evidence generator.
-- `examples/lab/four-host/`: unexecuted four-environment operator kit with local query/validation helpers that issue no explicit runtime mutation commands; local Kubo queries may use established swarm state and affect caches, as detailed in its runbook.
-- `spec/manifest-v1.schema.json`: draft structural contract for an unsigned deployment manifest.
-- `package.json`: workspace scripts, toolchain versions, and aggregate `pnpm check` pipeline.
-- `scripts/smoke-artifacts.mjs`: built and packed/offline-installed package release-path smoke test.
-- `.github/workflows/ci.yml`: Node/pnpm CI installation and aggregate workspace validation.
-- `ROADMAP.md`: hard-MVP gates, phase ordering, acceptance criteria, and progress evidence.
-- `AGENTS.md`: repository-wide architecture, security, testing, and protocol-change rules.
-
-## Architecture and dependency direction
+## Modules
 
 ```text
-specification ──> @meshkeep/protocol ──> @meshkeep/cli
-       │                    │                    │
-       └──── protocol truth ┴── no Kubo yet ───┘
+packages/protocol/src/
+  identifiers.ts    parseIpnsName (→ base36), parseContentCid (→ base32 v1), isIpnsName
+  keys.ts           libp2p Ed25519 private-key encoding, ipnsNameFromPublicKey
+  petname.ts        petname rules (DNS-label-like, never an address)
+  address-book.ts   meshkeep-address-book-v1: parse, validate, canonical encode, edit helpers
+  policy.ts         import profile values, record lifetime/TTL, re-put interval
+  errors.ts         ProtocolError with stable codes
 
-fixture bytes + pinned Kubo platform/index/import profile
-       └──> examples/lab/run-lab.sh ──> CIDs, recursive pins, verified cleanup, and bounded evidence
-       └──> examples/lab/run-ipns-lab.sh ──> signed-name/key-transfer/negative/local-HTTP/RPC-boundary observations
-       └──> examples/lab/four-host/ ──> not-run operator contract + sanitized local-only role checks
+packages/kubo/src/index.ts
+  parseApiUrl       loopback-only guard for the privileged RPC
+  KuboClient        add, pin, dag/stat offline, name publish/resolve/get/put/inspect, keys, swarm
+
+packages/cli/src/
+  index.ts          commander wiring, --json output, error → exit code 1
+  workflows.ts      publishSite, replicateSite, verifyComplete, requireImportProfile
+  keystore.ts       key files (create, load+verify, import, export)
+  state.ts          AddressBookStore (petname resolution), ReplicaStateStore
+  site.ts           safe deterministic directory reader (no symlinks, no dotfiles by default)
+  files.ts          size-limited reads, atomic private writes, no-clobber creates
 ```
 
-- Protocol rules flow outward from `spec/` and `@meshkeep/protocol`; presentation and
-  orchestration layers must not reimplement them.
-- Both Kubo labs are deliberately standalone and do not exercise the TypeScript protocol or CLI
-  packages. The immutable lab proves deterministic import, complete recursive retention, and
-  origin-offline reads. The IPNS precursor additionally observes native Kubo signed updates,
-  disposable key transfer, exact inspect/diagnostic behavior, bounded failure paths, replica-local
-  gateway serving, and same-network no-HTTP RPC failure (connection refusal or bounded inner
-  timeout) on one host without defining Meshkeep policy.
-- No Meshkeep-operated gateway, resolver, pinning service, telemetry collector, coordinator, or
-  canonical HTTP origin participates in correctness.
-- The four-host directory does not execute a run. Operators retain responsibility for repository
-  configuration, Docker lifecycle, 12 directed dials, network/firewall policy, external key
-  handoff, cross-host probes, and manual evidence reconciliation.
-- Wire formats, signing inputs, identity, ordering, IPNS mapping, compatibility, and trust changes
-  require an issue/RFC, ADR, normative specification and fixtures, downgrade analysis, and tests.
-
-## Repository directory map
-
-| Directory | Responsibility | Detailed map |
-| --- | --- | --- |
-| `packages/` | TypeScript workspace containing the protocol authority and CLI orchestration surface. | [packages/codemap.md](packages/codemap.md) |
-| `packages/protocol/` | Protocol constants, manifest types, and the future home of deterministic runtime validation, canonicalization, naming, and signatures. | [packages/protocol/codemap.md](packages/protocol/codemap.md) |
-| `packages/protocol/src/` | Exact public protocol exports and colocated unit-test context. | [packages/protocol/src/codemap.md](packages/protocol/src/codemap.md) |
-| `packages/cli/` | Commander-based executable/package boundary and local orchestration policy. | [packages/cli/codemap.md](packages/cli/codemap.md) |
-| `packages/cli/src/` | Side-effect-free CLI construction plus the dedicated executable entry module. | [packages/cli/src/codemap.md](packages/cli/src/codemap.md) |
-| `spec/` | Draft and future normative schemas, protocol text, and interoperability fixtures. | [spec/codemap.md](spec/codemap.md) |
-| `examples/` | Non-normative demo bytes, deterministic lab fixtures, and manual integration assets. | [examples/codemap.md](examples/codemap.md) |
-| `examples/lab/` | Hardened one-host Docker/Kubo workflow, pinned expectations, and recorded evidence. | [examples/lab/codemap.md](examples/lab/codemap.md) |
-| `examples/lab/four-host/` | Unexecuted independent-environment runbook, strict manifest, evidence template, and local query/validation helpers with no explicit runtime mutation commands; Kubo queries may use established swarm state and affect caches, with exact caveats in the runbook. | [examples/lab/four-host/codemap.md](examples/lab/four-host/codemap.md) |
-
-Supporting areas without separate codemaps:
-
-- `docs/`: architecture, threat model, privacy guidance, and accepted ADRs.
-- `.github/workflows/`: CI orchestration.
-- `examples/lab-fixtures/`: identity-bearing fixture bytes; changes affect hashes and CIDs.
-- `examples/lab/results/`: generated evidence snapshots, not protocol truth.
-
-## Build and verification flow
-
-The pnpm workspace includes `packages/*`. Both packages use strict NodeNext TypeScript, tsup for
-ESM/declaration builds, and Vitest for colocated tests. Root commands delegate recursively:
+## Dependency Direction
 
 ```text
-pnpm check
-  ├── biome check .
-  ├── pnpm typecheck
-  ├── pnpm test
-  ├── pnpm build
-  └── pnpm smoke:artifacts
+@meshkeep/protocol  ◄── @meshkeep/cli ──►  @meshkeep/kubo ──► Kubo RPC (loopback)
+        ▲
+        └── future browser extension (must stay browser-safe)
 ```
 
-The Docker/Kubo labs are manual and are not part of `pnpm check` or pull-request CI. Immutable result v2 is
-made atomically visible with `os.replace` only after status-preserving global/name/label queries
-verify captured resources and the temporary root absent. It records sanitized input/environment
-provenance without expanding the lab's claim. IPNS result v1 uses the same fail-closed boundary
-after four-node and owner-only key/raw-record/diagnostic cleanup. It records bounded closest-peer,
-per-replica local-gateway, unavailable-target HTTP, and RPC-boundary observations only as sanitized
-counts/booleans, distinguishes routing-put status from the subsequent selected-record observation,
-and excludes response bodies/headers, private key material, raw records, diagnostics, and network identities. Generated
-`dist/`, dependency directories, and lab results are not source entry points. The hard MVP is not
-complete until signed-name continuity, key migration, independent environments, complete graph
-retention, origin shutdown, independent-host gateway/firewall access, and required negative paths have reproducible evidence.
+## Invariants
 
-## Repository invariants
-
-- Keep protocol behavior deterministic and independent of wall-clock time, locale, host paths,
-  gateway hostnames, and object insertion order.
-- Validate all network, filesystem, manifest, and command input at its boundary; TypeScript types
-  alone are not runtime validation.
-- Fail closed on malformed or unsupported protocol data, ambiguous versions, invalid signatures,
-  stale updates, missing blocks, and incomplete graphs.
-- Keep Kubo RPC private and never silently fall back to a public centralized service.
-- Do not add deferred UI, desktop, storage, metrics, DNSLink, key-rotation, or build-automation
-  scope without the roadmap gate and a recorded decision.
+- Untrusted data (records, Kubo responses, address books, key files, site directories) is validated at the boundary, and failures are closed.
+- A replica reports a version only after `dag/stat` succeeds offline.
+- Records must point to `/ipfs/<cid>`. Replicas never roll back below a verified sequence.
+- Formats change only with an ADR, updated `spec/README.md`, and fixtures.

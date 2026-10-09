@@ -1,148 +1,59 @@
 # Meshkeep Roadmap
 
-This is a living plan, not a release promise. Checkboxes record verified repository or lab outcomes, not work in progress or intent.
+A living plan, not a release promise. An item is checked only when it is implemented and tested, with evidence in the progress log.
 
-## Status Legend
+## Goal
 
-- [x] Complete and verified. Evidence belongs in the progress log.
-- [ ] Not complete or not yet verified.
-- **IN PROGRESS** means active work but remains unchecked.
-- **BLOCKED** means a stated dependency or decision prevents progress.
-- **CONDITIONAL** means the work is considered only after its decision gate passes.
+Static websites that anyone can publish for free under a key-based address, that volunteers can keep alive without the publisher, and that people can visit through names in their own address book. No servers to rent, no registrars, no blockchain, and no Meshkeep service on the critical path. See [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md).
 
-## Current Focus
+## v0.1 Core — in progress
 
-Build the protocol and CLI only after proving the core lifecycle in a reproducible manual Kubo lab. The immediate target is v0.0, with the hard MVP scenario retained as the acceptance boundary for subsequent automation.
+- [x] Protocol package: Ed25519 key encoding, address derivation checked against Kubo, CID and address parsing, petnames, `meshkeep-address-book-v1` with canonical encoding and fixtures.
+- [x] Kubo RPC adapter that refuses non-loopback endpoints by default.
+- [x] CLI: `key create/list/export/import`, `publish`, `resolve`, `replicate`, `sync`, `verify`, `book add/remove/list/export/import`, `doctor`, `--json` output.
+- [x] Automated integration test on a private five-node Kubo network: publish v1, two complete replicas, publisher offline, key moved, v2, sync, every publisher offline with a fresh visitor still resolving and loading the site, rejection of tampered and rolled-back records, and fail-closed `verify`.
+- [ ] Integration job green in GitHub Actions.
+- [ ] Operator guide: Kubo setup for publishers and replicas, `sync` scheduling, key backup.
+- [ ] Bounded replication: per-site size and block limits, plus tests for interrupted transfers and timeouts.
 
-No implementation package is considered complete merely because files appear in the repository. It must satisfy its phase checks and produce repeatable evidence.
+## v0.2 Replica Daemon
 
-## Hard MVP Acceptance Criteria
+- [ ] `meshkeep replica run`: periodic sync and record re-put with backoff, limits, and structured local logs.
+- [ ] Retention policy (keep latest N versions) and safe pruning.
+- [ ] Follow a published address book: replicate every site a trusted curator lists, with explicit opt-in.
+- [ ] Container image and systemd unit for volunteers running replicas.
 
-The MVP is accepted only when one documented lab run demonstrates all of the following without a Meshkeep-operated central service:
+## v0.3 Browser Extension
 
-- [ ] Import a static site with the `unixfs-v1-2025` profile and publish immutable version v1 under a signed IPNS name.
-- [ ] Have two independently configured replicas resolve v1, validate the signed update, and pin the complete reachable UnixFS graph.
-- [ ] Shut down the publishing origin, including its Kubo node.
-- [ ] Open v1 from each replica and verify expected content while the publishing origin remains offline.
-- [ ] Move the publishing key securely to a second publisher machine and publish changed immutable version v2 under the same identity.
-- [ ] Have both replicas detect the signed update, synchronize the complete v2 graph, and retain it according to the stated policy.
-- [ ] Open and verify v2 from both replicas, with v1/v2 identity and synchronization evidence recorded.
-- [ ] Perform the run from a clean, documented environment using only committed instructions and disposable test keys.
+- [ ] Address book UI (the "contact list"): add, rename, import, export, and subscribe to published books.
+- [ ] Open `petname` or `k51…` addresses with an embedded verified-retrieval client (Helia / `@helia/verified-fetch`). No trusted gateway.
+- [ ] Isolation review: site content never gets extension privileges or access to local services.
+- [ ] Use a local Kubo gateway when one is available.
 
-Replica-local CID and IPNS gateway URLs are valid acceptance URLs. A shared DNS name, canonical hostname, DNSLink, or the original publisher URL is not required. See [ADR 0001](docs/adr/0001-mvp-scope.md).
+## v0.4 Publishing Ergonomics
 
-## v0.0 Manual Proof
+- [ ] GitHub Action that publishes an already-built directory, with a key custody guide.
+- [ ] Optional desktop app bundling Kubo for one-click publishing and replication.
 
-Goal: prove Kubo and IPNS behavior before fixing a Meshkeep protocol or automating it.
+## Later / Research
 
-- [x] Initialize the Git repository.
-- [x] Establish project, governance, architecture, threat, privacy, and MVP scope documentation.
-- [x] Establish the technical and configuration baseline for the workspace, initial packages, fixtures, and CI.
-- [x] Define a disposable static fixture and expected file checksums. (`examples/lab-fixtures/v1` + `v2`; eight SHA-256 values in the lab manifest)
-- [x] Record exact Kubo and environment versions for the lab. (Kubo 0.42.0/repo 18; image pinned as `sha256:8907cb0c…`)
-- [x] Document deterministic import steps for `unixfs-v1-2025` and confirm repeatable root CIDs. (v1 repeated on publisher and independently hashed on a replica; v2 independently hashed on a second replica)
-- [ ] Publish v1 through IPNS and recursively pin it on two isolated replicas. (a separate same-host native-Kubo precursor exercises signed IPNS v1 and complete recursive pinning on two container replicas; independent-environment and hard-MVP acceptance remain open)
-- [x] Demonstrate v1 retrieval from both replicas after origin shutdown. (all reachable refs and four file hashes verified on each replica with the publisher stopped)
-- [ ] Transfer a disposable publishing key to a second machine and publish v2.
-- [ ] Demonstrate signed update resolution, complete synchronization, and v2 retrieval from both replicas.
-- [x] Capture commands, expected outputs, failure notes, and cleanup steps in a manual lab guide. (`examples/lab/README.md`)
+These items need an ADR before any work starts:
 
-Exit gate: the hard MVP lifecycle works manually and remaining Kubo/IPNS limitations are documented. If it fails, revise assumptions before designing the CLI.
+- Anonymous transports (Tor or I2P) for replicas and visitors.
+- Key rotation and recovery for addresses.
+- A DNSLink bridge for owners of existing domains.
+- Replica discovery and mutual-replication circles, without tokens.
 
-## v0.1 Protocol And CLI
+## Out Of Scope
 
-Goal: specify and automate the proven publication and replication workflow without adding a resident service or UI.
-
-- [ ] Define publisher identity, release identity, supported IPNS mapping, and version/freshness semantics.
-- [ ] Specify deterministic encodings, validation limits, error behavior, and compatibility rules.
-- [ ] Add normative valid and invalid fixtures for signed updates and imported content.
-- [ ] Implement TypeScript protocol primitives without Kubo process or CLI dependencies.
-- [ ] Implement CLI capabilities to publish, inspect, verify, resolve, recursively pin, and synchronize.
-- [ ] Keep human output separate from stable machine-readable output.
-- [ ] Run the hard MVP scenario through the CLI on two isolated replicas and two publisher machines.
-- [ ] Publish operator documentation for keys, local Kubo RPC boundaries, recovery, and cleanup.
-
-Exit gate: protocol fixtures are reproducible, the CLI completes the hard MVP, and no central gateway, resolver, coordinator, or pinning service is required.
-
-## v0.2 Headless Replicator
-
-Goal: allow a volunteer operator to maintain selected sites without interactive CLI polling.
-
-- [ ] Define explicit subscription, retention, update, retry, and resource-limit policy.
-- [ ] Implement a headless TypeScript process that resolves, validates, recursively pins, and synchronizes.
-- [ ] Make restarts and interrupted synchronization safe without requiring SQLite.
-- [ ] Provide structured local logs without telemetry or published private data.
-- [ ] Test stale, invalid, unavailable, oversized, and partially transferred releases.
-- [ ] Demonstrate unattended v1-to-v2 synchronization on both replicas.
-
-Exit gate: a replica can run unattended with bounded resources and recover safely from interruption. Its failure does not affect publishers or other replicas.
-
-## v0.3 Linux Desktop MVP
-
-Goal: package the proven headless behavior for a Linux operator.
-
-- [ ] Pass a packaging ADR covering Tauri, update trust, process ownership, and Kubo distribution.
-- [ ] Build a minimal Tauri shell around the TypeScript application behavior.
-- [ ] Use Rust only for shell integration and Kubo sidecar lifecycle.
-- [ ] Keep Kubo RPC private and inaccessible to remote hosts and rendered web content.
-- [ ] Expose replica status and explicit operator actions without introducing a hosted dashboard.
-- [ ] Verify install, first run, restart, update, and uninstall on supported Linux targets.
-
-Exit gate: the desktop package adds no protocol fork, hidden central service, or unsafe RPC exposure.
-
-## v0.4 GitHub Action And Documentation
-
-Goal: make static publication reproducible in CI after the CLI and key model are stable.
-
-- [ ] Pass an ADR for CI key custody, least privilege, logs, and failure recovery.
-- [ ] Provide a GitHub Action workflow that consumes an already-built static directory.
-- [ ] Do not add framework detection or general build automation.
-- [ ] Prevent secrets, private keys, and sensitive paths from appearing in logs or artifacts.
-- [ ] Publish end-to-end publisher, replica, migration, and troubleshooting guides.
-- [ ] Test the documented workflow in a disposable repository and identity.
-
-Exit gate: CI publication is optional, reproducible, and no more trusted than local publication.
-
-## v0.5 Conditional Hardening
-
-Goal: address measured operational needs without weakening the original architecture.
-
-- [ ] **CONDITIONAL:** add SQLite only if file-based state is shown to be insufficient and migration/backup behavior is designed.
-- [ ] **CONDITIONAL:** add local metrics only after a privacy review, with no remote telemetry by default.
-- [ ] **CONDITIONAL:** add DNSLink only if its DNS trust, freshness, and operational value are documented.
-- [ ] **CONDITIONAL:** add key rotation only after recovery, revocation, rollback, and compatibility semantics are specified.
-- [ ] **CONDITIONAL:** add framework detection or build helpers only for demonstrated publisher demand and outside the core protocol.
-- [ ] Perform resource exhaustion, fuzzing, malformed graph, rollback, and long-running replica tests.
-- [ ] Define compatibility and deprecation policy from observed protocol evolution.
-
-Exit gate: each conditional feature has independent evidence, an accepted ADR, and a safe migration path. Features may remain omitted indefinitely.
-
-## Explicitly Out Of Scope
-
-- Anonymity, traffic obfuscation, or protection from peer/network metadata exposure.
-- Guaranteed permanence, indestructibility, universal availability, or deletion from IPFS.
-- Blockchain, cryptocurrency, token incentives, proof-of-storage, or distributed consensus ledgers.
-- Dynamic applications, server-side execution, databases for hosted sites, or arbitrary containers.
-- A required Meshkeep cloud, gateway, directory, coordinator, account system, or hosted control plane.
-- Content moderation adjudication or an abuse-reporting service in the MVP.
-- A canonical domain or same-origin guarantee across replicas.
-- Mobile, macOS, and Windows desktop applications before the Linux MVP is proven.
-- Dashboard, framework detection, build automation, Tauri, SQLite, metrics, DNSLink, and key rotation in the current phase.
-
-## Decision Gates
-
-1. **Manual proof to protocol:** confirm deterministic import, recursive availability, IPNS update behavior, key transfer, and alternative-URL serving.
-2. **Protocol to headless service:** freeze v0.1 compatibility and validation rules; demonstrate safe repeated synchronization and bounded graph handling.
-3. **Headless service to desktop:** prove unattended operation first; approve sidecar lifecycle and desktop update trust in an ADR.
-4. **CLI to GitHub Action:** stabilize non-interactive output and error semantics; approve CI key custody before workflow implementation.
-5. **Any conditional hardening:** require observed need, privacy/security review, migration design, and an accepted ADR.
-6. **Any new network or naming protocol:** show why Kubo/IPFS/IPNS cannot satisfy a verified requirement and how interoperability remains testable.
+- Blockchain, tokens, or consensus ledgers.
+- Dynamic sites, server-side code, or hosted databases.
+- A required Meshkeep cloud, gateway, registry, or account system.
+- Guaranteed permanence or deletion.
 
 ## Progress Log
 
-- 2026-07-18: Git repository initialization observed.
-- 2026-07-18: Initial project, contribution, conduct, security, architecture, threat model, privacy, roadmap, and MVP scope documentation created.
-- 2026-07-18: Technical baseline verified: pnpm workspace on Node.js 22; Biome, TypeScript, Vitest, and tsup configuration; initial protocol and CLI packages; draft schema; demo fixture; CI; frozen-lockfile installation; and `pnpm check` passing with 3 tests. No publication, replication, protocol, Kubo, or lab milestone is complete.
-- 2026-07-21: Immutable-CID Kubo lab passed with Kubo 0.42.0 pinned by digest. Three disposable repos applied `unixfs-v1-2025`; two replicas matched complete 8-block v1/v2 graphs and file checksums after origin shutdown; v1 remained retained after v2. The network was Docker-internal with no host ports/bootstrap/telemetry, and cleanup was verified. IPNS, signatures, key transfer, and independent machines remain unproven, so the hard MVP is still open.
-- 2026-07-29: A fresh separate same-host Kubo 0.42.0 signed-IPNS/key-transfer precursor passed. Four hardened containers used a Docker-internal private DHT with exact unique expected-active-peer-set mesh checks and bounded exact-ID closest-peer samples; two replicas directly verified Kubo `Entry`/`Validation` fields, exact one-second TTL, publication-bracketed 10-minute EOL, sequence-0 v1 and sequence-1 v2 under one disposable Ed25519 name, and both complete eight-block graphs after both publishers stopped. Each replica then served all four v1/v2 files through local `/ipfs` and all four current v2 files through local `/ipns` with exactly one HTTP 200/no redirects and matching streamed hashes while both publishers stayed offline and `Gateway.NoFetch=true`; absent-target checks required local IPNS-record HTTP 200 before cached-only final HTTP 412. Local loopback Kubo API POSTs matched captured identities and `kubo/0.42.0`, while two cross-container probes resolved the target name but received no HTTP response from loopback-bound RPC. Existing status-1 invalid-signature/stale/malformed diagnostics, successful complete pin-list absence, status-zero lower-level routing-put plus unchanged selected v2, key cleanup, and fail-closed resource cleanup remained verified. All nodes were containers on one host, ordinary deletion is not secure erasure, and no independent machine/operator, independent-host gateway URL/firewall/host boundary, routing-table membership, public-DHT behavior, Meshkeep freshness policy, or hard-MVP criterion is claimed; all related checkboxes remain open.
-- 2026-07-29: Added an unexecuted four-host operator kit under `examples/lab/four-host/`. Its strict non-secret manifest references the existing lab truth; local query/validation helpers emit sanitized JSON and issue no explicit runtime mutation commands, though Kubo queries may use established swarm state and affect caches as caveated in the runbook; the runbook assigns repository/Docker lifecycle, all 12 directed dials, cross-host transport controls, external authenticated encrypted key handoff, cleanup, and evidence reconciliation to operators. The only committed aggregate evidence is a `result: "not-run"` template with empty observations. No four-host execution, independent-environment acceptance, or checkbox completion is claimed.
+- 2026-07-18: Repository, documentation baseline, and TypeScript workspace created.
+- 2026-07-21: Same-host Kubo lab showed deterministic `unixfs-v1-2025` CIDs and complete replica retention with the origin offline.
+- 2026-07-29: Same-host lab showed signed IPNS v1 and v2 under one key moved between publishers, plus native rejection of invalid, stale, and malformed records.
+- 2026-10-09: Direction changed by [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md). Manual Bash labs replaced by `pnpm test:integration`, which passed 9/9 locally (Docker 29.7.2, Kubo 0.42.0 pinned by digest, Node 26.8.2) in about 30 seconds with full cleanup. `pnpm check` passed with 83 unit tests. The fixture root CIDs match the earlier labs.

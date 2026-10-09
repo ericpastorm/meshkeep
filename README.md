@@ -1,133 +1,101 @@
 # Meshkeep
 
-Publish a signed static website version and let volunteer replicas keep it available after the publisher goes offline.
+Host static websites on a peer-to-peer network: free addresses, no servers to rent, and no single point anyone can switch off.
 
-> **Status: pre-alpha.** The repository contains the documentation baseline, initial protocol/CLI scaffolding, two passing same-host Kubo labs, and an unexecuted four-host operator kit. The signed precursor recursively pins and locally gateway-serves complete graphs on two replicas while checking loopback RPC isolation; the new kit supplies local query/validation helpers with no explicit runtime mutation commands. Local Kubo queries may use established swarm state and affect caches; see the kit runbook for exact caveats. No independent-host run or hard-MVP evidence exists, and the protocol/CLI workflows are not implemented. Do not use Meshkeep for production data or availability.
+> **Status: early development (v0.1).** Publishing, replication, and address books work end to end and are tested against real Kubo nodes. Interfaces and formats may still change. Use disposable keys and public content only.
 
-## What Meshkeep Is
+## The Idea
 
-Meshkeep is an open-source peer-to-peer publication and replication workflow for static websites. A publisher imports static files into IPFS, uses a signed IPNS update to select an immutable content root, and asks independently operated replicas to retain the complete UnixFS graph. A replica can then serve that version through its own Kubo gateway even when the publishing origin is offline.
+- **Your address is a key.** `meshkeep key create blog` gives you an address like `k51qzi5uqu5d…`. Nobody sells it, nobody can take it from you, and it costs nothing.
+- **Your site is content-addressed.** Each version is an immutable IPFS directory identified by its hash. Whoever has a copy can serve it, and every visitor can check that the bytes are right.
+- **Anyone can keep it alive.** Replicas, which are other people's machines, keep a full copy and keep your signed address record circulating. Once replicas hold it, the site stays up even if your own computer is gone, the way a torrent outlives its first seeder.
+- **People use names, not hashes.** Everyone keeps an address book (`book add blog k51…`) that maps their own nicknames to addresses. Books can be shared and imported. A browser extension that works like a contact list is planned.
 
-The planned baseline uses:
+There is no blockchain, no token, no central registry, and no Meshkeep server. Under the hood, [Kubo](https://github.com/ipfs/kubo) (IPFS) does the storage, transfer, and signed names. Meshkeep adds the workflow, the rules, and the address book.
 
-- Kubo/IPFS for content addressing, transfer, pinning, and gateway access.
-- UnixFS with the `unixfs-v1-2025` import profile for static content.
-- IPNS for signed mutable discovery of the current immutable version.
-- CAR files as an optional transport, not a separate identity system.
-- TypeScript for protocol code, CLI, and future UI code.
-- Rust only later, if needed for a Tauri shell and Kubo sidecar lifecycle.
+Meshkeep is **not** anonymous: peers can see the IP addresses of the nodes they talk to. It does not guarantee permanence (a site lives while someone replicates it) or deletion (copies can't be recalled). See [the threat model](docs/threat-model.md).
 
-## What Meshkeep Is Not
+## Quick Start
 
-- It is not an anonymity or privacy network.
-- It cannot make content indestructible or guarantee that volunteers will retain it.
-- It cannot guarantee deletion after content has reached IPFS peers.
-- It is not a blockchain, cryptocurrency, token, or consensus system.
-- It is not hosting for dynamic servers, databases, or arbitrary application containers.
-- It does not require a Meshkeep-operated gateway, coordinator, account service, or cloud.
-- It does not promise one canonical URL or browser origin across replicas.
+You need Node.js 22.12 or later, pnpm, and a running [Kubo](https://docs.ipfs.tech/install/command-line/) daemon whose RPC API listens on `127.0.0.1:5001`.
 
-## Target MVP Demo
+```sh
+pnpm install && pnpm build
+alias meshkeep="node $PWD/packages/cli/dist/bin.js"
 
-The hard MVP is one repeatable lab scenario:
+# Once per Kubo node: use the import profile that makes versions reproducible.
+ipfs config profile apply unixfs-v1-2025   # then restart the daemon
+meshkeep doctor
+```
 
-1. On publisher machine A, import a static site and publish signed version v1.
-2. On two independently configured replicas, resolve v1 and pin its complete graph.
-3. Shut down machine A and its Kubo node.
-4. Open and verify v1 through each replica's own CID or IPNS gateway URL.
-5. Move the publishing key securely to publisher machine B and publish changed version v2 under the same identity.
-6. Have both replicas verify the update, synchronize the complete v2 graph, and serve it.
+Publish a site:
 
-Alternative CID/IPNS URLs are expected. The demo proves content integrity, signed update authority, replication, and origin independence. It does not prove anonymity, permanent availability, or a canonical hostname.
+```sh
+meshkeep key create blog                 # prints your address, k51…
+meshkeep publish ./public --key blog     # imports, pins, and signs v1
+# edit ./public, then publish again: same address, new version
+```
 
-## Architecture Summary
+Replicate someone's site, with a petname:
 
-Static files form an immutable UnixFS graph identified by a root CID. The CID commits to the graph's bytes. A publisher-controlled IPNS key signs mutable records that select the current root. Replicas resolve and validate the signed update, fetch every reachable block, and recursively pin the version according to local policy. Once propagation is complete, the initial Kubo origin is not required for retrieval.
+```sh
+meshkeep book add their-blog k51qzi5uqu5d…
+meshkeep replicate their-blog            # full copy + keeps the address alive
+meshkeep sync                            # run this from cron at least every 12 hours
+```
 
-Kubo remains behind an adapter and private local RPC boundary. The protocol does not depend on a public gateway or hosted Meshkeep service. A CAR archive may move the same content graph between nodes without changing its root CID.
+Visit a site through any Kubo node's gateway: `http://127.0.0.1:8080/ipns/k51…/`.
 
-See [Architecture](docs/architecture.md), [Threat Model](docs/threat-model.md), [Privacy](docs/privacy.md), and [ADR 0001](docs/adr/0001-mvp-scope.md).
+Move publishing to another machine:
 
-## Expected Repository Layout
+```sh
+meshkeep key export blog blog.key        # unencrypted, so move it securely and delete it after
+# on the other machine:
+meshkeep key import blog blog.key
+meshkeep publish ./public --key blog     # continues from the latest version
+```
 
-The repository currently has protocol and CLI scaffolds, a draft unsigned manifest schema, and a demo fixture. Later paths remain planned boundaries. Their presence does not mean the hard MVP workflow is implemented.
+Add `--json` to any command for machine-readable output on stdout. Diagnostics go to stderr. Meshkeep keeps its state in `$MESHKEEP_HOME` (default `~/.config/meshkeep`).
+
+## How It Works
 
 ```text
-packages/
-  protocol/       # Initial TypeScript types/constants; protocol behavior is planned
-  cli/            # Initial version/doctor scaffold; Kubo workflows are planned
-  replicator/     # Planned v0.2 headless replica
-apps/
-  desktop/        # Planned v0.3 Linux Tauri shell
-spec/             # Draft schema; normative protocol fixtures are planned
-examples/         # Demo site, immutable-CID lab, signed-IPNS precursor, and fixtures
-docs/
-  adr/            # Architecture decision records
+publisher                         replicas                         visitor
+─────────                         ────────                         ───────
+static dir ─► UnixFS CID
+key ─► signed IPNS record ──────► verify signature + sequence
+                                  pin every block, verify offline
+                                  re-put record into the DHT ────► resolve address
+                                  serve blocks ──────────────────► fetch + verify by CID
+```
+
+See [the architecture](docs/architecture.md), [the specification](spec/README.md), and [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md) for the reasoning.
+
+## Repository
+
+```text
+packages/protocol   addresses, keys, petnames, address book (pure TS, browser-safe)
+packages/kubo       narrow Kubo RPC client (loopback-only by default)
+packages/cli        the meshkeep command
+spec/               normative rules, JSON schema, interoperability fixtures
+tests/integration   private Kubo network in Docker, full lifecycle test
+docs/               architecture, threat model, privacy, ADRs
 ```
 
 ## Development
 
-### Prerequisites
-
-- Git
-- Node.js `>=22.23.1 <23`; `.node-version` pins the tested 22.23.1 security baseline
-- pnpm 10.34.5, as declared by the root `packageManager` field
-- Docker for the Kubo lab; `ipfs/kubo` 0.42.0 is pinned by digest in its manifest
-- Linux or another environment capable of running isolated Kubo repositories for that lab
-
-Rust is not a current prerequisite.
-
-### Setup
-
-Install the workspace and run its aggregate check:
-
 ```sh
-pnpm install --frozen-lockfile
-pnpm check
+pnpm install
+pnpm check              # lint, typecheck, unit tests, build
+pnpm test:integration   # needs Docker; starts five Kubo containers on a private network
 ```
 
-Focused scripts are `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm format`, and `pnpm smoke:artifacts`. The aggregate check builds before the artifact smoke test, which packs both packages, creates a frozen offline consumer from the current pnpm store, verifies runtime and TypeScript export conditions, exercises the installed bin shim, and preserves direct/symlinked built-bin regression coverage. The current CLI only provides version output and a prerequisite report; `doctor` accepts stable Node `>=22.23.1 <23`, reports unsupported runtimes with a nonzero status, and does not perform external checks.
-
-The root pnpm override temporarily keeps tsup on esbuild 0.28.1 so the workspace has one esbuild release line; remove it when tsup's declared dependency range advances.
-
-The immutable manual proof covers CIDs and offline replica retention:
-
-```sh
-./examples/lab/run-lab.sh
-```
-
-The separate signed-IPNS precursor adds same-host key transfer, negative paths, local gateway HTTP, and RPC-boundary observations:
-
-```sh
-./examples/lab/run-ipns-lab.sh
-```
-
-See [the lab guide](examples/lab/README.md) and [the signed-IPNS guide](examples/lab/IPNS.md). Neither same-host run supplies independent-environment hard-MVP evidence.
-
-The [four-host kit](examples/lab/four-host/README.md) is an unexecuted operator runbook plus local query/validation helpers with no explicit runtime mutation commands. Local Kubo queries may use established swarm state and affect caches; see the runbook for exact caveats. The kit performs no remote orchestration, key transport, network policy, or Docker lifecycle action and does not change roadmap acceptance.
-
-## Principles
-
-- Make a narrow, testable promise and report limitations plainly.
-- Prefer immutable content identity plus signed mutable discovery.
-- Keep the publisher origin disposable and replicas independently operated.
-- Require complete recursive retention, not a root-only pin.
-- Avoid central services, hidden gateway fallbacks, and protocol proliferation.
-- Treat interoperability fixtures and failure behavior as protocol requirements.
-- Add complexity only after the manual proof demonstrates a need.
-
-## Security And Privacy
-
-Publishing to IPFS is public distribution. Content, CIDs, IPNS names, peer identifiers, IP addresses, request timing, and provider activity may be observable. A signing key controls future updates and its loss or theft can be permanent. Replica and gateway operators can inspect requests and retained content.
-
-Never expose Kubo RPC to the public network or untrusted browser content. Use only disposable keys and non-sensitive content during pre-alpha testing. Read [SECURITY.md](SECURITY.md), [the threat model](docs/threat-model.md), and [the privacy notes](docs/privacy.md) before operating a node.
+The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected.
 
 ## Roadmap
 
-The [roadmap](ROADMAP.md) contains the hard MVP acceptance criteria, phase gates, and explicit exclusions. Unchecked items are not implemented commitments.
+Next up: a replica daemon, then the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
 
-## Contributing
+## Contributing And Security
 
-Contributions are welcome after reading [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Protocol and trust-model changes require discussion and an ADR before implementation. Security reports must follow [SECURITY.md](SECURITY.md).
-
-Meshkeep code is licensed under the [Mozilla Public License 2.0](LICENSE). Documentation and repository license notices should be checked before redistributing non-code material.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Code is licensed under the [Mozilla Public License 2.0](LICENSE).

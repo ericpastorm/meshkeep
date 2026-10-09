@@ -1,6 +1,6 @@
 # Security Policy
 
-Meshkeep is pre-alpha and has no supported release. Do not use it for production availability, private content, or valuable signing keys.
+Meshkeep is in early development and has no supported release. Do not use it for production availability, private content, or valuable signing keys.
 
 ## Reporting A Vulnerability
 
@@ -45,7 +45,7 @@ If content also demonstrates a software vulnerability, report only the minimal t
 ## Operator Baseline
 
 - Keep publisher keys offline or minimally exposed and back them up securely.
-- Use disposable keys during development and the manual lab.
+- Use disposable keys during development and testing.
 - Bind Kubo RPC to loopback or an equivalent private interface; never expose it to the public network or untrusted browser content.
 - Assume IPFS content, CIDs, peer identifiers, IP addresses, and request metadata can become public.
 - Verify complete recursive retention and signed update identity instead of trusting a gateway response alone.

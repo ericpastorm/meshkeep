@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!examples/lab-fixtures"]
+    "includes": ["**", "!tests/fixtures/site-*"]
   },
   "formatter": {
     "enabled": true,
