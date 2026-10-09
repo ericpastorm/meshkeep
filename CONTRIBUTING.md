@@ -1,6 +1,6 @@
 # Contributing To Meshkeep
 
-Meshkeep is pre-alpha. Keep contributions small, explicit about trust assumptions, and aligned with [ROADMAP.md](ROADMAP.md).
+Meshkeep is in early development. Keep contributions small, explicit about trust assumptions, and aligned with [ROADMAP.md](ROADMAP.md) and [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md).
 
 ## Before Starting
 
@@ -27,18 +27,17 @@ Maintainers may close proposals that add a central dependency, a new protocol wi
 
 ## Development Checks
 
-Install the package workspace and run the aggregate check:
-
 ```sh
 pnpm install --frozen-lockfile
-pnpm check
+pnpm check              # lint, typecheck, unit tests, build
+pnpm test:integration   # needs Docker; private Kubo network
 ```
 
-Use `pnpm build`, `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `pnpm format` for focused validation. If a package-specific check or required external tool has not landed, say so in the pull request rather than claiming it passed. Kubo integration work must use isolated repositories, disposable keys, and non-sensitive fixture content.
+Run the integration tests when you touch Kubo-facing code. If you could not run a check, say so in the pull request. Tests must use generated or fixture keys, non-sensitive content, and isolated Kubo nodes.
 
 ## Protocol Decisions
 
-Changes to wire formats, canonical encoding, signatures, identity, update ordering, IPNS mapping, UnixFS import behavior, compatibility, or trust boundaries require an issue or RFC and an accepted ADR under `docs/adr/` before implementation. Include deterministic valid and invalid fixtures, downgrade analysis, and migration impact.
+Changes to a data format, address derivation, signing input, record ordering, or trust assumptions need a short ADR in `docs/adr/`, an update to [spec/README.md](spec/README.md), and valid and invalid fixtures. Open an issue first if the change is substantial.
 
 ## Developer Certificate Of Origin
 

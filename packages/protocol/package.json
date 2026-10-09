@@ -1,26 +1,24 @@
 {
   "name": "@meshkeep/protocol",
-  "version": "0.0.0",
+  "version": "0.1.0-dev",
   "license": "MPL-2.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": {
-      "development": {
-        "types": "./src/index.ts",
-        "import": "./dist/index.js"
-      },
+      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
   "files": [
-    "dist",
-    "src/index.ts"
+    "dist"
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
-    "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "multiformats": "14.0.5"
   }
 }

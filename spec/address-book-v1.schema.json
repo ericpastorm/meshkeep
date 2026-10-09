@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://meshkeep.dev/spec/address-book-v1.schema.json",
+  "title": "Meshkeep Address Book v1",
+  "description": "Structural schema. Rules a schema cannot express (a petname must not be a site address, petnames are unique, names must decode as libp2p-key CIDs, canonical ordering) are normative in spec/README.md.",
+  "type": "object",
+  "required": ["format", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "meshkeep-address-book-v1" },
+    "entries": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "required": ["petname", "name"],
+        "additionalProperties": false,
+        "properties": {
+          "petname": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 280,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          }
+        }
+      }
+    }
+  }
+}

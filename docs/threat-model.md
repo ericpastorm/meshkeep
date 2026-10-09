@@ -1,108 +1,63 @@
 # Threat Model
 
-Status: pre-alpha MVP baseline. Revisit this document when protocol semantics, Kubo versions, or deployment boundaries change.
+Revisit this document when record policy, key handling, the extension, or the Kubo version changes.
 
-## Protected Assets And Claims
+## What Meshkeep Protects
 
-Meshkeep aims to protect:
-
-- Publisher authority: only the holder of the publishing key can authorize the next update.
-- Version integrity: retrieved bytes match the selected immutable root CID.
-- Replication correctness: a replica reports availability only after retaining the complete reachable graph.
-- Update correctness: replicas reject invalid, unsupported, ambiguous, and unauthorized updates.
-- Local operator security: private keys, host files, credentials, and privileged Kubo RPC are not exposed.
-- Honest status: software distinguishes resolved, fetching, complete, stale, and failed states.
-
-Availability is conditional on willing, connected replicas and functioning IPFS/IPNS networking. It is not a protected guarantee.
+- **Address authority:** only the holder of a site key can change what its address points to.
+- **Content integrity:** retrieved bytes match the version CID the signed record selects.
+- **Complete replication:** a replica reports a version only when every block is stored locally.
+- **No rollback at replicas:** a replica never moves to a record older than one it has verified.
+- **Takedown resistance:** removing any single machine (the publisher, a replica, any service) does not remove the site while another replica is reachable.
+- **Operator safety:** keys, host files, and Kubo RPC are not exposed by Meshkeep.
 
 ## Trust Boundaries
 
-- The publisher machine and private key are trusted to authorize intended content.
-- The Kubo RPC endpoint is privileged and trusted only inside a local private boundary.
-- IPFS peers, DHT participants, providers, gateways, CAR files, IPNS responses, static inputs, and replica operators are untrusted.
-- Kubo is a security-critical dependency. Meshkeep relies on its verified CID, UnixFS, IPNS, and pinning behavior but must constrain and verify adapter results.
-- Browser-rendered website content is untrusted and must never gain Kubo RPC or host privileges.
+- The publisher's machine and key are trusted to sign intended content.
+- Kubo RPC is privileged and trusted only on loopback.
+- Peers, DHT nodes, gateways, replicas, records, address books from others, and site content are untrusted.
+- Kubo is a security-critical dependency. Meshkeep relies on its CID, IPNS validation, and pinning, and checks what it returns.
 
-## Adversaries
+## Adversaries And Controls
 
-The MVP considers:
+### Someone who wants a site gone
 
-- A remote peer returning malformed, incomplete, excessive, or adversarial graphs.
-- A gateway or replica serving stale content, denying service, or lying about retention.
-- An attacker replaying an older valid update or attempting an unauthorized update.
-- A malicious static site attempting browser attacks or access to local services.
-- A local or supply-chain attacker seeking publishing keys, credentials, or command execution.
-- An observer correlating peer identities, IP addresses, provider records, requests, and timing.
-- Accidental operator error, including publishing secrets, losing keys, exposing RPC, or pinning only a root reference.
+- **Seize a domain or server:** none exists. The address is a key, and content lives on every replica.
+- **Pressure the publisher:** the site keeps running from replicas, and the key can move.
+- **Pressure replica operators:** each operator is independent, so every one of them has to be reached. More replicas mean more resilience.
+- **Block IPFS traffic for a visitor:** not defended. Anonymous or obfuscated transports are research items.
+- **Let the record expire:** records live one year by default, and replicas re-put them. Without a new publication within the lifetime, the address stops resolving, but versions stay reachable by CID.
 
-## Principal Threats And MVP Controls
+### Forged or stale updates
 
-### Publishing-key theft or loss
+- **Forged record:** IPNS signatures are verified against the address. The integration test rejects a tampered record.
+- **Replay of an older record:** Kubo refuses lower sequences on `name/put`, and replicas refuse records older than the newest they have verified.
+- **Isolating a visitor and serving an old but valid record:** possible within the record lifetime. A visitor that sees both records takes the higher sequence. This is the main freshness trade-off of long lifetimes.
 
-Impact: an attacker can authorize future updates, or the legitimate publisher can no longer update the stable identity.
+### Key compromise or loss
 
-Controls: keep keys separate from content and logs; use disposable lab keys; minimize key presence; transfer and back up keys through an explicit operator procedure; fail closed on invalid identity. Key rotation and revocation are not yet available, so compromise recovery is a known gap.
+A stolen key lets the thief publish under the address, and a lost key freezes it. There is no rotation or recovery yet. Mitigations: keep keys only in the keystore (mode 0600), back them up offline, and delete exported transfer files.
 
-### Substitution, corruption, and incomplete retention
+### Malicious or incomplete content from peers
 
-Impact: a user receives different bytes or a replica claims a version it cannot fully serve.
+Blocks are verified by CID. A replica that cannot fetch every block fails instead of claiming the version. Size and time limits per site are still to be added (see the roadmap).
 
-Controls: bind updates to immutable CIDs; let Kubo verify blocks; traverse and verify the complete reachable graph; record the expected root CID; never equate a root pin request with demonstrated completeness.
+### Misleading address books
 
-### Replay and stale resolution
+A shared address book can map a familiar petname to an impostor's address. Importing never overwrites an existing petname without `--replace`. The address itself is the identity; the petname is only a label.
 
-Impact: a replica or user remains on v1 after v2 was validly published.
+### Malicious site content
 
-Controls: validate IPNS signatures and supported freshness/version semantics; record resolution evidence; expose stale or uncertain state instead of silently accepting it. Detailed ordering, cache, and rollback rules must be fixed during v0.1 before automation is considered safe.
+Meshkeep proves who signed the content, not that it is safe. Sites are untrusted web content. The extension must isolate them from its own privileges and from local services, and Kubo RPC must never be reachable from a page.
 
-### Resource exhaustion
+### Local exposure
 
-Impact: large or malformed graphs consume disk, memory, CPU, bandwidth, or file descriptors.
+The CLI refuses non-loopback RPC endpoints by default. It does not follow symlinks or publish dotfiles unless asked, and never prints keys.
 
-Controls: validate inputs; impose explicit size, depth, block, concurrency, timeout, and retry limits; stage synchronization before declaring success; keep operator quotas authoritative. Exact limits remain a protocol and replicator design task.
+## Accepted Risks
 
-### Kubo RPC exposure
-
-Impact: a remote site or attacker controls node operations, reads sensitive node data, or reaches host capabilities.
-
-Controls: bind RPC to loopback or an equivalent private interface; do not publish it through a reverse proxy; do not make it available to browser content; use a narrow adapter; avoid shell interpolation; apply least privilege at the process boundary.
-
-### Malicious website content
-
-Impact: phishing, browser exploitation, tracking, or attacks against local gateway context.
-
-Controls: treat content as untrusted; rely on browser isolation; do not inject privileged Meshkeep APIs; prefer origin-isolating gateway modes where available. Meshkeep authenticates publisher-selected bytes but does not certify that they are safe.
-
-### Central fallback or dependency
-
-Impact: a convenient hosted gateway, resolver, coordinator, or telemetry endpoint becomes a control, privacy, or availability dependency.
-
-Controls: all hard MVP acceptance runs use independently operated Kubo nodes and remain valid when the publisher origin is off. Optional services must not be silent defaults or correctness dependencies.
-
-## Accepted Residual Risks
-
-- Two replicas can both go offline, delete content, collude, or fail.
-- IPNS resolution can be slow, partitioned, cached, censored, or observed.
-- A valid publisher can intentionally publish harmful content.
-- Gateway HTTP responses do not by themselves provide end-to-end freshness proof to a browser.
-- Alternative gateway URLs have different browser origins and security state.
-- IPFS content can persist beyond publisher or replica deletion attempts.
-- Network observers and peers can correlate activity; Meshkeep provides no anonymity.
-- The MVP has no key rotation, revocation, or post-compromise recovery protocol.
-
-## Out Of Scope
-
-- Defending against a fully compromised publisher machine while its key is in use
-- Anonymity, traffic analysis resistance, or hidden service operation
-- Guaranteed content availability or deletion
-- Moderation and adjudication of third-party content
-- Dynamic server-side code isolation
-- Blockchain or economic incentive attacks
-
-## Validation Before MVP Acceptance
-
-- Exercise invalid signatures, stale updates, missing blocks, malformed graphs, and interrupted transfers.
-- Confirm both replicas serve the expected CID after origin shutdown.
-- Confirm Kubo RPC is not reachable from a remote interface or hosted website.
-- Inspect logs and machine output for secrets, keys, host paths, and sensitive content.
-- Repeat v2 publication from another machine using the deliberately transferred disposable key.
+- Every replica can go offline or leave.
+- Peers and observers can see IP addresses, the content requested or provided, and timing. Meshkeep provides no anonymity.
+- Copies cannot be deleted from other people's nodes.
+- A valid key holder can publish harmful content.
+- Gateways are separate browser origins, and a remote gateway can lie about freshness.

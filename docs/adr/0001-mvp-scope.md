@@ -1,6 +1,6 @@
 # ADR 0001: MVP Scope And Node Roles
 
-- Status: Accepted
+- Status: Superseded by [ADR 0002](0002-resilient-sites-and-address-book.md)
 - Date: 2026-07-18
 - Decision owners: Meshkeep maintainers
 

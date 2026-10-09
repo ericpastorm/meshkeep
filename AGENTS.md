@@ -1,122 +1,57 @@
 # AGENTS.md
 
-Operational guidance for automated contributors working in this repository.
+Guidance for automated contributors working in this repository.
 
 ## Mission
 
-Meshkeep is open-source peer-to-peer hosting and replication for static websites. It publishes an immutable static version through a signed name update and lets independently operated replicas preserve the complete content graph.
+Meshkeep lets anyone publish a static website under a free, key-based address (an IPNS name) and lets volunteer replicas keep it reachable without the publisher, like torrent seeders. People reach sites through petnames in their own address book. There are no servers to rent, no registrars, no blockchain, and no Meshkeep service on the critical path. [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md) records the decisions; [ROADMAP.md](ROADMAP.md) records the phases.
 
-The honest promise is limited: a publisher can go offline after publication while willing, connected replicas continue to retain and serve that version.
+Be honest about limits: Meshkeep is not anonymous, does not guarantee permanence or deletion, and cannot stop network-level blocking of IPFS.
 
-Meshkeep does not promise anonymity, censorship resistance, permanent availability, deletion from the network, or a canonical HTTP origin. It does not use a blockchain.
+## Layout
 
-## Current Phase
+- `packages/protocol/`: addresses, key encoding, petnames, the address book, and policy constants. Pure TypeScript with no Node-only APIs, because the browser extension will reuse it. No Kubo or CLI code.
+- `packages/kubo/`: the narrow Kubo RPC client. No business rules.
+- `packages/cli/`: commands, local state (keystore, address book, replica state), and the publish and replicate workflows. Do not duplicate protocol rules here.
+- `spec/`: normative rules, the JSON schema, and fixtures. Fixtures are the interoperability contract.
+- `tests/integration/`: Docker-based private Kubo network and lifecycle tests.
+- `docs/`: architecture, threat model, privacy, ADRs.
 
-The current focus is the protocol, CLI, and a reproducible manual Kubo lab. The hard MVP is defined in [ROADMAP.md](ROADMAP.md).
-
-Do not add a dashboard, framework detection, build automation, Tauri, SQLite, metrics, DNSLink, or key rotation unless the roadmap phase and a recorded decision explicitly authorize it.
-
-## Architecture Boundaries
-
-- Kubo/IPFS provides content addressing, UnixFS storage, peer discovery, transfer, pinning, gateways, and IPNS.
-- Use the `unixfs-v1-2025` import profile. A CAR file may transport the same graph but must not define a different release identity.
-- TypeScript owns the protocol model, CLI, and any future UI.
-- Rust is deferred to a future Tauri shell and Kubo sidecar lifecycle only. Do not duplicate protocol rules in Rust.
-- The protocol layer must not depend on CLI presentation, Kubo process management, or a UI.
-- The CLI may orchestrate protocol and Kubo adapters but must not reimplement validation or signature rules.
-- A future replicator may resolve, validate, recursively pin, and synchronize. It must not become a required coordinator.
-- The publishing origin is disposable after propagation. No Meshkeep-operated service may be required to resolve or retrieve a published version.
-
-## Directory Ownership
-
-These are the intended ownership boundaries as the repository is populated:
-
-- `packages/protocol/`: protocol types, canonical encoding, validation, naming, and signature semantics. No CLI or daemon concerns.
-- `packages/cli/`: commands, local configuration, orchestration, and human-readable output. No duplicated protocol rules.
-- `packages/replicator/`: future headless replica policy and lifecycle. No desktop UI.
-- `apps/desktop/`: future Linux desktop shell only after the v0.3 gate.
-- `spec/`: normative protocol text, schemas, and interoperability fixtures.
-- `examples/`: non-normative examples and lab fixtures.
-- `docs/`: architecture, operations, privacy, threats, and ADRs.
-
-Before editing, inspect the current tree and package-local instructions. Do not change files outside the assigned task, even to fix nearby issues. Concurrent work may add files while an agent is active; re-read relevant files before editing and never overwrite unrelated changes.
+Read [codemap.md](codemap.md) for the data flow before larger changes.
 
 ## Commands
 
-Use repository scripts when their manifests exist:
-
 ```sh
 pnpm install
-pnpm build
-pnpm test
-pnpm typecheck
-pnpm lint
-pnpm format
-pnpm check
+pnpm check              # biome, typecheck, unit tests, build, CLI smoke
+pnpm test:integration   # needs Docker; Kubo 0.42.0 pinned by digest
+pnpm format             # rewrites files; review the diff
 ```
 
-`pnpm check` is the expected aggregate CI validation. `pnpm format` may modify files; inspect its diff. If a script or manifest has not landed, report it as unavailable rather than inventing configuration or claiming it passed.
+Run `pnpm check` before calling a change done. Run `pnpm test:integration` when you touch `packages/kubo`, the workflows, or anything Kubo-facing. If Docker is unavailable, say so rather than claiming it passed.
 
-## Code And Style Rules
+## Rules
 
-- Prefer the smallest change that satisfies the current roadmap item.
-- Keep protocol behavior deterministic and independent of wall-clock time, host paths, locale, gateway hostname, and object key insertion order.
-- Validate all untrusted network, filesystem, manifest, and command input at its boundary.
-- Keep machine-readable output stable and separate it from diagnostics.
-- Do not silently fall back to a centralized gateway, resolver, pinning service, telemetry collector, or update service.
-- Do not introduce another storage, naming, discovery, or transport protocol without an accepted ADR.
-- Do not add blockchain, token, cryptocurrency, or consensus-ledger dependencies.
-- Follow existing formatter, linter, TypeScript strictness, and package conventions once present. Do not weaken checks to make a change pass.
+- Keep changes small and in scope. Re-read files before editing; other work may be in progress.
+- Validate untrusted input (network responses, records, files, address books, CLI arguments) at the boundary, and fail closed.
+- Protocol behavior must be deterministic: no dependence on wall-clock time, host paths, locale, or key insertion order.
+- Keep `--json` output stable and on stdout, and send diagnostics to stderr.
+- Never fall back silently to a public gateway, resolver, pinning service, or telemetry endpoint.
+- Kubo RPC stays on loopback. Never expose it to the network or to web content.
+- Never commit, log, or print private keys, tokens, or real user content. Tests use generated keys or the disposable fixture key in `spec/fixtures/keys/`.
+- Do not add dependencies without a reason. Prefer the platform and existing dependencies.
 
-## Testing Rules
+## Decisions
 
-- Add unit tests for validation, canonicalization, signatures, and failure paths.
-- Add interoperability fixtures for every normative protocol encoding.
-- Integration tests that use Kubo must use isolated repositories and must not depend on public gateways or a specific public peer.
-- Test recursive completeness, not only root-CID pinning.
-- Test publisher shutdown, stale updates, invalid signatures, missing blocks, and interrupted synchronization where relevant.
-- Never mark a roadmap acceptance item complete without reproducible evidence from the stated environment.
+Changes to a format, address derivation, signing input, record ordering, or trust assumptions need a short ADR in `docs/adr/`, updated `spec/README.md`, and updated fixtures. New format versions get new `format` strings, and readers reject versions they do not know.
 
-## Security Rules
+## Testing
 
-- Never commit, log, print, fixture, or transmit private keys, seed phrases, tokens, credentials, or real user content.
-- Use generated disposable keys and content in tests.
-- Treat publisher keys as the authority for mutable updates. Fail closed on invalid signatures, malformed records, and ambiguous versions.
-- Bind Kubo RPC to loopback or an equivalent private boundary. Never expose it to the public network or browser content.
-- Do not pass untrusted values through a shell. Constrain paths, archive extraction, resource use, and content graph traversal.
-- Gateways and replicas are untrusted for freshness and availability. Content addressing detects changed bytes; it does not prove freshness or benign content.
-- Follow [SECURITY.md](SECURITY.md) for reporting. Do not place vulnerability details in public issues.
-
-## Protocol Changes
-
-Any change to wire formats, canonical encoding, signing input, key identity, version ordering, IPNS mapping, UnixFS import behavior, compatibility, or trust assumptions requires:
-
-1. An issue or RFC describing the problem and alternatives.
-2. An ADR in `docs/adr/` for the decision and migration impact.
-3. Updated normative specification and deterministic fixtures.
-4. Compatibility and downgrade analysis.
-5. Tests proving valid and invalid behavior across implementations where applicable.
-
-Do not merge a protocol change based only on matching implementation behavior. Unknown protocol versions and unsupported profiles must fail explicitly.
+- Unit tests sit next to the code (`*.test.ts`). Cover validation, encoding, and failure paths.
+- Integration tests use isolated containers with a private swarm key, never public peers or gateways, and must clean up after themselves.
+- Check complete-graph retention, not just root pins.
 
 ## Repository Discipline
 
-- Do not commit unless the user explicitly asks for a commit.
-- Do not amend, rewrite, or discard work you did not create.
-- Keep dependency additions justified and scoped. Prefer platform and existing dependency capabilities.
-- Update [ROADMAP.md](ROADMAP.md) when, and only when, a tracked milestone has been implemented and verified. Add dated evidence to the progress log.
-
-## Definition Of Done
-
-A change is done when its scoped behavior is implemented, relevant tests and fixtures pass, `pnpm check` passes when available, security and privacy effects are addressed, user-facing and protocol documentation agree with behavior, no central dependency or scope expansion was introduced, and any completed roadmap item has reproducible evidence recorded. Report unavailable checks and residual risks explicitly.
-
-## Repository Map
-
-A full codemap is available at `codemap.md` in the project root.
-
-Before working on any task, read `codemap.md` to understand:
-- Project architecture and entry points
-- Directory responsibilities and design patterns
-- Data flow and integration points between modules
-
-For deep work on a specific folder, also read that folder's `codemap.md`.
+- Do not commit unless asked. Never rewrite or discard work you did not create.
+- Update ROADMAP.md only for verified milestones, with a dated progress-log entry.

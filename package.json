@@ -1,12 +1,12 @@
 {
   "name": "meshkeep",
-  "version": "0.0.0",
+  "version": "0.1.0-dev",
   "license": "MPL-2.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": ">=22.23.1 <23"
+    "node": ">=22.12.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -17,15 +17,17 @@
     }
   },
   "scripts": {
-    "build": "pnpm --recursive --if-present run build",
-    "test": "pnpm --recursive --if-present run test",
-    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "build": "pnpm --recursive run build",
+    "typecheck": "pnpm --recursive run typecheck && tsc --project tests/tsconfig.json",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "smoke:artifacts": "node scripts/smoke-artifacts.mjs",
-    "check": "biome check . && pnpm typecheck && pnpm test && pnpm build && pnpm smoke:artifacts"
+    "check": "biome check . && pnpm typecheck && pnpm test && pnpm build && node packages/cli/dist/bin.js version"
   },
   "devDependencies": {
+    "@meshkeep/cli": "workspace:*",
+    "@meshkeep/kubo": "workspace:*",
     "@biomejs/biome": "2.3.11",
     "@types/node": "22.20.1",
     "tsup": "8.5.1",

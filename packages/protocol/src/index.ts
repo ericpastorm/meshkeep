@@ -1,24 +1,8 @@
-export const VERSION = "0.0.0" as const;
+export const VERSION = "0.1.0-dev";
 
-export const SCHEMA_ID = "https://meshkeep.dev/spec/manifest-v1.schema.json" as const;
-
-export const UNIXFS_PROFILE = "unixfs-v1-2025" as const;
-
-export interface DeploymentStatsV1 {
-  files: number;
-  bytes: number;
-}
-
-/**
- * Initial unsigned deployment manifest. Signature semantics will be defined by a future ADR.
- */
-export interface DeploymentManifestV1 {
-  schema: typeof SCHEMA_ID;
-  siteId: string;
-  sequence: number;
-  contentCid: string;
-  previousManifestCid: string | null;
-  createdAt: string;
-  unixfsProfile: typeof UNIXFS_PROFILE;
-  stats: DeploymentStatsV1;
-}
+export * from "./address-book.js";
+export * from "./errors.js";
+export * from "./identifiers.js";
+export * from "./keys.js";
+export * from "./petname.js";
+export * from "./policy.js";
