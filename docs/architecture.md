@@ -57,6 +57,10 @@ A replica fetches a version only within the site's `maxBytes` and `maxBlocks` (d
 
 A refused version is unpinned when this run created the pin; that also covers an abort racing with Kubo finishing the pin. A fetch that times out (`--fetch-timeout`) records nothing. Blocks already fetched stay in the blockstore unpinned, so the next run resumes from them, and Kubo garbage collection can reclaim them.
 
+### Replica Daemon
+
+`meshkeep replica run` is an optional long-running process, not a coordinator. Each cycle it reads `replicas.json` again and runs the same `replicateSite` workflow for every site that is due. Each site is due once per interval (default 6 hours). After a failure it is retried with exponential backoff starting at 1 minute and capped at the interval. Operational failures (Kubo, network, limits, state) are logged and retried; unexpected errors exit so a supervisor restarts the process. SIGTERM/SIGINT abort an in-flight record lookup or fetch, and nothing half-done is recorded. Logs are JSON lines on stderr. The loop takes its clock and sleep as parameters, so its schedule is unit-tested without waiting.
+
 ### Kubo Configuration
 
 Publishers need the `unixfs-v1-2025` import profile; `meshkeep doctor` and `meshkeep publish` check it. Kubo RPC must listen on loopback only. The CLI refuses other endpoints unless `--allow-remote-api` is given.

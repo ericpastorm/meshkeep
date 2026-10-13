@@ -43,8 +43,10 @@ Replicar la web de otra persona, con un petname:
 ```sh
 meshkeep book add su-blog k51qzi5uqu5d…
 meshkeep replicate su-blog               # copia completa + mantiene viva la dirección
-meshkeep sync                            # ejecútalo desde cron al menos cada 12 horas
+meshkeep replica run                     # se queda en marcha: revisa cada web cada 6 horas
 ```
+
+En lugar de `replica run`, puedes ejecutar `meshkeep sync` desde cron al menos cada 12 horas.
 
 Las réplicas solo descargan lo que han aceptado guardar. Cada web tiene un límite de tamaño y de bloques (por defecto 2 GiB y 250.000 bloques). Se ajusta con `replicate --max-size 512MiB --max-blocks 50000`; el valor se recuerda y `sync` lo aplica. Las versiones que superan el límite se rechazan y no se fijan. Una descarga interrumpida o que agota el tiempo (`--fetch-timeout`, 30 minutos por defecto) no registra nada, y la siguiente ejecución continúa desde los bloques ya descargados.
 
@@ -88,7 +90,7 @@ packages/cli        el comando meshkeep
 spec/               reglas normativas, JSON Schema, fixtures de interoperabilidad
 tests/integration   red Kubo privada en Docker, test del ciclo de vida completo
 docs/               guía de operador, arquitectura, modelo de amenazas, privacidad, ADRs
-examples/           web de demostración, units de systemd para el sync programado
+examples/           web de demostración, units de systemd para el daemon de réplica y el sync programado
 ```
 
 ## Desarrollo
@@ -103,7 +105,7 @@ El test de integración publica la v1 y la replica en dos réplicas; después ap
 
 ## Hoja De Ruta
 
-Lo siguiente: un daemon de réplica y, después, la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
+Lo siguiente: seguir agendas publicadas y una imagen de contenedor para réplicas; después, la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
 
 ## Contribuir Y Seguridad
 

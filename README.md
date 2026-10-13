@@ -43,8 +43,10 @@ Replicate someone's site, with a petname:
 ```sh
 meshkeep book add their-blog k51qzi5uqu5d…
 meshkeep replicate their-blog            # full copy + keeps the address alive
-meshkeep sync                            # run this from cron at least every 12 hours
+meshkeep replica run                     # stays running: re-checks every site every 6 hours
 ```
+
+Instead of `replica run`, you can run `meshkeep sync` from cron at least every 12 hours.
 
 Replicas only fetch what they agreed to hold. Each site has a size and block limit (by default 2 GiB and 250,000 blocks). Set it with `replicate --max-size 512MiB --max-blocks 50000`; the value is remembered, and `sync` applies it. Versions over the limit are refused and left unpinned. An interrupted or timed-out fetch (`--fetch-timeout`, default 30 minutes) records nothing, and the next run resumes from the blocks already downloaded.
 
@@ -88,7 +90,7 @@ packages/cli        the meshkeep command
 spec/               normative rules, JSON schema, interoperability fixtures
 tests/integration   private Kubo network in Docker, full lifecycle test
 docs/               operator guide, architecture, threat model, privacy, ADRs
-examples/           demo site, systemd units for scheduled sync
+examples/           demo site, systemd units for the replica daemon and scheduled sync
 ```
 
 ## Development
@@ -103,7 +105,7 @@ The integration test publishes v1 and replicates it to two replicas, then shuts 
 
 ## Roadmap
 
-Next up: a replica daemon, then the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
+Next up: following published address books and a container image for replicas, then the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing And Security
 
