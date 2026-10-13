@@ -33,6 +33,11 @@ packages/cli/src/
   files.ts          size-limited reads, atomic private writes, no-clobber creates
 ```
 
+## Operations
+
+- `docs/operators.md`: how to run publishers and replicas.
+- `examples/systemd/`: user units that run `meshkeep sync` every 6 hours.
+
 ## Dependency Direction
 
 ```text

@@ -113,6 +113,21 @@ describe.sequential("site lifecycle", () => {
     expect(published).toMatchObject({ name: siteName, cid: V2_CID, sequence: 1 });
   });
 
+  it("republishing an unchanged directory renews the record without changing the version", async () => {
+    // Operators keep an address alive past its lifetime by republishing (docs/operators.md).
+    const first = await meshkeep("publisher-b", "resolve", siteName);
+    const renewed = await meshkeep(
+      "publisher-b",
+      "publish",
+      join(FIXTURES, "site-v2"),
+      "--key",
+      "site",
+    );
+
+    expect(first).toMatchObject({ cid: V2_CID });
+    expect(renewed).toMatchObject({ name: siteName, cid: V2_CID, sequence: 2 });
+  });
+
   it("replicas sync to v2 and keep v1", async () => {
     for (const role of REPLICAS) {
       const synced = (await meshkeep(role, "sync")) as { sites: Record<string, unknown>[] };
@@ -120,7 +135,7 @@ describe.sequential("site lifecycle", () => {
       expect(synced.sites[0]).toMatchObject({
         ok: true,
         cid: V2_CID,
-        sequence: 1,
+        sequence: 2,
         updated: true,
         versions: [V1_CID, V2_CID],
       });

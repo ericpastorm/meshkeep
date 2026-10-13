@@ -59,6 +59,8 @@ meshkeep publish ./public --key blog     # continues from the latest version
 
 Add `--json` to any command for machine-readable output on stdout. Diagnostics go to stderr. Meshkeep keeps its state in `$MESHKEEP_HOME` (default `~/.config/meshkeep`).
 
+Running a publisher or replica for real? Read the [operator guide](docs/operators.md): Kubo setup, key backup, scheduling `sync` with systemd or cron, disk space, and troubleshooting.
+
 ## How It Works
 
 ```text
@@ -81,7 +83,8 @@ packages/kubo       narrow Kubo RPC client (loopback-only by default)
 packages/cli        the meshkeep command
 spec/               normative rules, JSON schema, interoperability fixtures
 tests/integration   private Kubo network in Docker, full lifecycle test
-docs/               architecture, threat model, privacy, ADRs
+docs/               operator guide, architecture, threat model, privacy, ADRs
+examples/           demo site, systemd units for scheduled sync
 ```
 
 ## Development

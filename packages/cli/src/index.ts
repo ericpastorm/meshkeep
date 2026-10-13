@@ -283,14 +283,18 @@ export function createProgram(options: CliOptions = {}): Command {
     .command("replicate <target>")
     .description("keep a complete copy of a site and keep its address alive")
     .addOption(
-      new Option("--max-size <size>", "refuse versions larger than this (e.g. 512MiB); remembered")
-        .argParser(argument(parseByteSize))
-        .default(undefined, `stored, else ${DEFAULT_REPLICA_LIMITS.maxBytes / 1024 ** 3}GiB`),
+      new Option(
+        "--max-size <size>",
+        "refuse versions larger than this, e.g. 512MiB; remembered for sync " +
+          `(default: stored, else ${DEFAULT_REPLICA_LIMITS.maxBytes / 1024 ** 3}GiB)`,
+      ).argParser(argument(parseByteSize)),
     )
     .addOption(
-      new Option("--max-blocks <count>", "refuse versions with more blocks than this; remembered")
-        .argParser(argument(parsePositiveInteger))
-        .default(undefined, `stored, else ${DEFAULT_REPLICA_LIMITS.maxBlocks}`),
+      new Option(
+        "--max-blocks <count>",
+        "refuse versions with more blocks than this; remembered for sync " +
+          `(default: stored, else ${DEFAULT_REPLICA_LIMITS.maxBlocks})`,
+      ).argParser(argument(parsePositiveInteger)),
     )
     .addOption(fetchTimeoutOption())
     .addOption(
