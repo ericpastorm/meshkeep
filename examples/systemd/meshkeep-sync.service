@@ -1,0 +1,16 @@
+# Re-verifies every replicated site, fetches new versions within their limits, and re-puts
+# their signed records so the addresses stay resolvable. Install as a user unit:
+#   cp meshkeep-sync.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now meshkeep-sync.timer
+[Unit]
+Description=Meshkeep replica sync
+Documentation=https://github.com/ericpastorm/meshkeep/blob/main/docs/operators.md
+
+[Service]
+Type=oneshot
+# The meshkeep launcher runs `node` from PATH. If Node.js is not in /usr/bin or
+# /usr/local/bin (for example, it was installed with a version manager), uncomment
+# the next line and set the directory that contains `node`.
+#Environment=PATH=/path/to/node/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/.local/bin/meshkeep sync
+Nice=10

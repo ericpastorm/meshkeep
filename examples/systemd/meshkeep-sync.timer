@@ -1,0 +1,12 @@
+# Runs meshkeep sync every 6 hours. DHT nodes forget records after about 48 hours, and
+# Meshkeep recommends a re-put at least every 12, so this leaves room for missed runs.
+[Unit]
+Description=Run Meshkeep replica sync every 6 hours
+
+[Timer]
+OnCalendar=00/6:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
