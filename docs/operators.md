@@ -210,6 +210,28 @@ meshkeep unreplicate their-blog             # --keep-pins leaves every pin in pl
 
 Retention and `unreplicate` unpin a version only when **this replica created the pin** and no other replicated site still uses it. A pin you made yourself, or one `meshkeep publish` made for your own site on the same node, is never removed. Sites replicated before Meshkeep tracked pin ownership (v0.1) report their old pins as `kept`; unpin those yourself with `ipfs pin rm <cid>` if you no longer want them. If an unpin fails, the site stays recorded and you can simply run the command again.
 
+### Run A Replica With Docker
+
+If you only want to be a replica, Docker is the shortest path: [`examples/docker/compose.yaml`](../examples/docker/compose.yaml) runs Kubo and the Meshkeep replica daemon together.
+
+```sh
+cd examples/docker
+docker compose up -d --build
+docker compose exec meshkeep meshkeep replicate k51qzi5uqu5d…    # add sites
+docker compose exec meshkeep meshkeep book add their-blog k51…   # petnames work too
+docker compose logs -f meshkeep                                  # JSON-line daemon log
+```
+
+How it is wired:
+
+- The Meshkeep container shares Kubo's network namespace (`network_mode: service:kubo`), so it reaches the RPC on `127.0.0.1:5001`. [`kubo-init.sh`](../examples/docker/kubo-init.sh) binds the RPC to that loopback, and the port is not published. Neither the host nor other containers can reach it; we verified that another container on the same network gets "connection refused".
+- Swarm port 4001 (TCP and UDP) is published so other peers can fetch from you; open it in your firewall. The gateway is published on the host's `127.0.0.1:8080` only.
+- The Meshkeep container runs as an unprivileged user with a read-only root filesystem, no capabilities, and `no-new-privileges`. Its state (`replicas.json`, address book) lives in the `meshkeep-data` volume, and Kubo's in `kubo-data`.
+- Kubo runs with `--enable-gc`, so blocks from refused or interrupted fetches are reclaimed. Pins are never collected.
+- If you recreate the `kubo` container (for example after changing its image), recreate `meshkeep` too (`docker compose up -d --force-recreate`), because it lives in Kubo's network namespace.
+
+The image itself is built from this checkout (`Dockerfile` at the repository root). It contains Node.js and a single bundled `meshkeep.mjs`, plus the licenses of everything bundled into it (`/app/licenses`).
+
 ## 5. Visit Sites
 
 Through your own Kubo gateway, either form works:

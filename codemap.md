@@ -5,7 +5,7 @@
 - `packages/cli/src/bin.ts` → `runCli()` in `packages/cli/src/index.ts`: the `meshkeep` executable and every command.
 - `packages/protocol/src/index.ts`: the public protocol API, re-exported from one module per concern.
 - `packages/kubo/src/index.ts`: `KuboClient` and `parseApiUrl`.
-- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
+- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`; `container.test.ts`: the built image next to Kubo. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
 
 ## Modules
 
@@ -39,6 +39,8 @@ packages/cli/src/
 
 - `docs/operators.md`: how to run publishers and replicas.
 - `examples/systemd/`: user units for the replica daemon (`meshkeep-replica.service`), or a timer that runs `meshkeep sync` every 6 hours.
+- `Dockerfile` + `scripts/bundle-cli.mjs`: the meshkeep image, with the CLI bundled into one file.
+- `examples/docker/`: Docker Compose replica (Kubo + daemon in Kubo's network namespace, RPC on loopback only).
 
 ## Dependency Direction
 

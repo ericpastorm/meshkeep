@@ -46,7 +46,7 @@ meshkeep replicate su-blog               # copia completa + mantiene viva la dir
 meshkeep replica run                     # se queda en marcha: revisa cada web cada 6 horas
 ```
 
-En lugar de `replica run`, puedes ejecutar `meshkeep sync` desde cron al menos cada 12 horas.
+En lugar de `replica run`, puedes ejecutar `meshkeep sync` desde cron al menos cada 12 horas. O montar una réplica completa, Kubo incluido, con Docker: `cd examples/docker && docker compose up -d --build` (consulta la [guía de operador](docs/operators.md#run-a-replica-with-docker)).
 
 Las réplicas solo descargan lo que han aceptado guardar. Cada web tiene un límite de tamaño y de bloques (por defecto 2 GiB y 250.000 bloques). Se ajusta con `replicate --max-size 512MiB --max-blocks 50000`; el valor se recuerda y `sync` lo aplica. Las versiones que superan el límite se rechazan y no se fijan. Una descarga interrumpida o que agota el tiempo (`--fetch-timeout`, 30 minutos por defecto) no registra nada, y la siguiente ejecución continúa desde los bloques ya descargados.
 
@@ -90,7 +90,8 @@ packages/cli        el comando meshkeep
 spec/               reglas normativas, JSON Schema, fixtures de interoperabilidad
 tests/integration   red Kubo privada en Docker, test del ciclo de vida completo
 docs/               guía de operador, arquitectura, modelo de amenazas, privacidad, ADRs
-examples/           web de demostración, units de systemd para el daemon de réplica y el sync programado
+examples/           web de demostración, réplica con Docker Compose, units de systemd para el daemon y el sync
+Dockerfile          la imagen de meshkeep (Node.js + un único fichero), ejecuta el daemon de réplica
 ```
 
 ## Desarrollo
@@ -101,11 +102,11 @@ pnpm check              # lint, typecheck, tests unitarios, build
 pnpm test:integration   # requiere Docker; arranca cinco contenedores Kubo en una red privada
 ```
 
-El test de integración publica la v1 y la replica en dos réplicas; después apaga el publicador. Mueve la clave a un segundo publicador, publica la v2 y sincroniza. Por último apaga todos los publicadores y comprueba que un visitante completamente nuevo sigue pudiendo resolver y cargar la web solo desde las réplicas. También comprueba que se rechazan los registros manipulados y los intentos de volver a una versión anterior. Un segundo conjunto de tests cubre los límites de tamaño y de bloques de las réplicas, y una descarga interrumpida que se retoma después.
+El test de integración publica la v1 y la replica en dos réplicas; después apaga el publicador. Mueve la clave a un segundo publicador, publica la v2 y sincroniza. Por último apaga todos los publicadores y comprueba que un visitante completamente nuevo sigue pudiendo resolver y cargar la web solo desde las réplicas. También comprueba que se rechazan los registros manipulados y los intentos de volver a una versión anterior. Otros conjuntos de tests cubren los límites de tamaño y de bloques de las réplicas con una descarga interrumpida que se retoma después, el daemon de réplica y la imagen de contenedor (construida desde el repositorio y ejecutada junto a Kubo igual que en el compose).
 
 ## Hoja De Ruta
 
-Lo siguiente: seguir agendas publicadas y una imagen de contenedor para réplicas; después, la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
+Lo siguiente: seguir agendas publicadas y, después, la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
 
 ## Contribuir Y Seguridad
 

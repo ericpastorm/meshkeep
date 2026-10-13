@@ -17,9 +17,17 @@ export const KUBO_IMAGE =
 const INIT_SCRIPT = fileURLToPath(new URL("./kubo-init.sh", import.meta.url));
 const READY_TIMEOUT_MS = 60_000;
 
-async function docker(...args: string[]): Promise<string> {
+export async function docker(...args: string[]): Promise<string> {
   const { stdout } = await run("docker", args, { maxBuffer: 16 * 1024 * 1024 });
   return stdout.trim();
+}
+
+/** A container's log, stdout and stderr together (the daemon logs to stderr). */
+export async function containerLogs(container: string): Promise<string> {
+  const { stdout, stderr } = await run("docker", ["logs", container], {
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return `${stdout}\n${stderr}`;
 }
 
 export interface KuboNode {
@@ -148,6 +156,34 @@ export class KuboCluster {
       const target = this.node(peer);
       await self.kubo.connect(`/dns4/${peer}/tcp/4001/p2p/${target.peerId}`);
     }
+  }
+
+  /**
+   * Runs a container inside `role`'s network namespace, the way compose's
+   * `network_mode: service:kubo` does, so it reaches that node's RPC on 127.0.0.1. It is
+   * labelled with this run and removed by `destroy`.
+   */
+  async runAlongside(
+    role: string,
+    image: string,
+    args: readonly string[],
+    extra: readonly string[] = [],
+  ) {
+    const container = `meshkeep-it-${this.runId}-${role}-sidecar`;
+    await docker(
+      "run",
+      "--detach",
+      "--name",
+      container,
+      "--label",
+      this.label,
+      "--network",
+      `container:${this.node(role).container}`,
+      ...extra,
+      image,
+      ...args,
+    );
+    return container;
   }
 
   /** Removes every container, volume, and network created by this run. */
