@@ -50,7 +50,9 @@ describe("withFileLock", () => {
       );
 
     await Promise.all([task("a"), task("b")]);
-    expect(order).toEqual(["a start", "a end", "b start", "b end"]);
+    // Either task may win the race for the lock; what matters is that they never interleave.
+    const [first, second] = order[0] === "a start" ? ["a", "b"] : ["b", "a"];
+    expect(order).toEqual([`${first} start`, `${first} end`, `${second} start`, `${second} end`]);
   });
 
   it("takes over a lock left by a process that no longer exists", async () => {
