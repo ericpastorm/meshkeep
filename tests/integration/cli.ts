@@ -101,12 +101,12 @@ export function cliRunner(cluster: KuboCluster, scratch: () => string) {
 /** Polls until `check` returns a value, or fails after `timeoutMs`. */
 export async function waitFor<T>(
   description: string,
-  check: () => T | undefined,
+  check: () => T | undefined | Promise<T | undefined>,
   timeoutMs = 60_000,
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const value = check();
+    const value = await check();
     if (value !== undefined) {
       return value;
     }

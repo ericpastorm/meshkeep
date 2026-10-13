@@ -1,0 +1,46 @@
+# A Meshkeep replica: Kubo plus the Meshkeep replica daemon.
+#
+#   cd examples/docker
+#   docker compose up -d --build
+#   docker compose exec meshkeep meshkeep replicate k51…     # add a site to replicate
+#   docker compose logs -f meshkeep                          # JSON-line daemon log
+#
+# Open TCP and UDP port 4001 in your firewall so other peers can fetch from this replica.
+name: meshkeep
+
+services:
+  kubo:
+    # Kubo 0.42.0, pinned by index digest.
+    image: ipfs/kubo@sha256:8907cb0cc1ad5798f6bb1bb1341a800990c268e021cedfa317e8aa1a33864214
+    restart: unless-stopped
+    # --enable-gc reclaims blocks left by refused or interrupted fetches. Pins are never removed.
+    command: ["daemon", "--migrate=true", "--agent-version-suffix=docker", "--enable-gc"]
+    ports:
+      - "4001:4001/tcp"
+      - "4001:4001/udp"
+      # Gateway for your own browser only. The RPC (5001) is never published.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - kubo-data:/data/ipfs
+      - ./kubo-init.sh:/container-init.d/010-meshkeep.sh:ro
+
+  meshkeep:
+    build:
+      context: ../..
+    image: meshkeep:local
+    restart: unless-stopped
+    # Share Kubo's network namespace, so the RPC is reachable on 127.0.0.1:5001 and nowhere else.
+    network_mode: service:kubo
+    depends_on:
+      - kubo
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    command: ["replica", "run"]
+    volumes:
+      - meshkeep-data:/data/meshkeep
+
+volumes:
+  kubo-data:
+  meshkeep-data:

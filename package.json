@@ -23,13 +23,15 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "check": "biome check . && pnpm typecheck && pnpm test && pnpm build && node packages/cli/dist/bin.js version"
+    "check": "biome check . && pnpm typecheck && pnpm test && pnpm build && node packages/cli/dist/bin.js version && pnpm bundle && node dist/meshkeep.mjs version",
+    "bundle": "node scripts/bundle-cli.mjs"
   },
   "devDependencies": {
     "@meshkeep/cli": "workspace:*",
     "@meshkeep/kubo": "workspace:*",
     "@biomejs/biome": "2.3.11",
     "@types/node": "22.20.1",
+    "esbuild": "0.28.1",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.10"

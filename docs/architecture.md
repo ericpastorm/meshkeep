@@ -61,6 +61,10 @@ A refused version is unpinned when this run created the pin; that also covers an
 
 `meshkeep replica run` is an optional long-running process, not a coordinator. Each cycle it reads `replicas.json` again and runs the same `replicateSite` workflow for every site that is due. Each site is due once per interval (default 6 hours). After a failure it is retried with exponential backoff starting at 1 minute and capped at the interval. Operational failures (Kubo, network, limits, state) are logged and retried; unexpected errors exit so a supervisor restarts the process. SIGTERM/SIGINT abort an in-flight record lookup or fetch, and nothing half-done is recorded. Logs are JSON lines on stderr. The loop takes its clock and sleep as parameters, so its schedule is unit-tested without waiting.
 
+### Container Image
+
+The `Dockerfile` builds a Node.js image with the CLI bundled into one ES module (`scripts/bundle-cli.mjs`, using esbuild) and runs `meshkeep replica run` by default. It needs no exception to the loopback rule: the container is meant to share a Kubo node's network namespace, so the RPC stays on loopback (`examples/docker/compose.yaml`). The integration suite builds the image from the checkout and runs it that way against a private Kubo network.
+
 ### Kubo Configuration
 
 Publishers need the `unixfs-v1-2025` import profile; `meshkeep doctor` and `meshkeep publish` check it. Kubo RPC must listen on loopback only. The CLI refuses other endpoints unless `--allow-remote-api` is given.

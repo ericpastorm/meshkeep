@@ -46,7 +46,7 @@ meshkeep replicate their-blog            # full copy + keeps the address alive
 meshkeep replica run                     # stays running: re-checks every site every 6 hours
 ```
 
-Instead of `replica run`, you can run `meshkeep sync` from cron at least every 12 hours.
+Instead of `replica run`, you can run `meshkeep sync` from cron at least every 12 hours. Or run a whole replica, Kubo included, with Docker: `cd examples/docker && docker compose up -d --build` (see the [operator guide](docs/operators.md#run-a-replica-with-docker)).
 
 Replicas only fetch what they agreed to hold. Each site has a size and block limit (by default 2 GiB and 250,000 blocks). Set it with `replicate --max-size 512MiB --max-blocks 50000`; the value is remembered, and `sync` applies it. Versions over the limit are refused and left unpinned. An interrupted or timed-out fetch (`--fetch-timeout`, default 30 minutes) records nothing, and the next run resumes from the blocks already downloaded.
 
@@ -90,7 +90,8 @@ packages/cli        the meshkeep command
 spec/               normative rules, JSON schema, interoperability fixtures
 tests/integration   private Kubo network in Docker, full lifecycle test
 docs/               operator guide, architecture, threat model, privacy, ADRs
-examples/           demo site, systemd units for the replica daemon and scheduled sync
+examples/           demo site, Docker Compose replica, systemd units for the daemon and scheduled sync
+Dockerfile          the meshkeep image (Node.js + one bundled file), runs the replica daemon
 ```
 
 ## Development
@@ -101,11 +102,11 @@ pnpm check              # lint, typecheck, unit tests, build
 pnpm test:integration   # needs Docker; starts five Kubo containers on a private network
 ```
 
-The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected. A second suite covers replica size and block limits and an interrupted fetch that resumes later.
+The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected. Further suites cover replica size and block limits with an interrupted fetch that resumes later, the replica daemon, and the container image (built from the checkout and run next to Kubo as compose runs it).
 
 ## Roadmap
 
-Next up: following published address books and a container image for replicas, then the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
+Next up: following published address books, then the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing And Security
 
