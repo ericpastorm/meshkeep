@@ -21,7 +21,7 @@ import { CliError } from "./errors.js";
 import { readLimitedFile } from "./files.js";
 import { Keystore } from "./keystore.js";
 import { AddressBookStore, DEFAULT_REPLICA_LIMITS, ReplicaStateStore } from "./state.js";
-import { parseByteSize, parsePositiveInteger } from "./units.js";
+import { parseByteSize, parseKeepCount, parsePositiveInteger } from "./units.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   DEFAULT_RECORD_TIMEOUT_MS,
@@ -29,6 +29,7 @@ import {
   type ReplicateOptions,
   replicateSite,
   requireImportProfile,
+  unreplicateSite,
   verifyComplete,
 } from "./workflows.js";
 
@@ -296,6 +297,12 @@ export function createProgram(options: CliOptions = {}): Command {
           `(default: stored, else ${DEFAULT_REPLICA_LIMITS.maxBlocks})`,
       ).argParser(argument(parsePositiveInteger)),
     )
+    .addOption(
+      new Option(
+        "--keep <count>",
+        'how many versions to keep pinned, or "all"; remembered for sync (default: stored, else all)',
+      ).argParser(argument(parseKeepCount)),
+    )
     .addOption(fetchTimeoutOption())
     .addOption(
       new Option(
@@ -312,6 +319,7 @@ export function createProgram(options: CliOptions = {}): Command {
           opts: {
             maxSize?: number;
             maxBlocks?: number;
+            keep?: number;
             fetchTimeout: number;
             recordTimeout: number;
           },
@@ -324,17 +332,41 @@ export function createProgram(options: CliOptions = {}): Command {
               ...(opts.maxSize === undefined ? {} : { maxBytes: opts.maxSize }),
               ...(opts.maxBlocks === undefined ? {} : { maxBlocks: opts.maxBlocks }),
             },
+            ...(opts.keep === undefined ? {} : { keep: opts.keep }),
           };
           const result = await replicateSite(kubo(), replicas, name, replicateOptions);
           emit(result, [
             `${result.updated ? "updated" : "current"} ${name}`,
             `cid:      ${result.cid} (${result.blocks} blocks, ${result.bytes} bytes, complete)`,
             `sequence: ${result.sequence}`,
-            `versions: ${result.versions.length} pinned`,
+            `versions: ${result.versions.length} kept (${result.keep === 0 ? "keeping all" : `keeping ${result.keep}`})`,
+            ...(result.pruned.length === 0 ? [] : [`pruned:   ${result.pruned.join(", ")}`]),
             `limits:   ${result.maxBytes} bytes / ${result.maxBlocks} blocks`,
           ]);
         },
       ),
+    );
+
+  program
+    .command("unreplicate <target>")
+    .description("stop replicating a site and unpin the versions this replica pinned")
+    .option("--keep-pins", "stop following the site but leave every pin in place")
+    .action(
+      action(async (target: string, opts: { keepPins?: boolean }) => {
+        const { name } = await book.resolveTarget(target);
+        const result = await unreplicateSite(kubo(), replicas, name, {
+          keepPins: opts.keepPins === true,
+        });
+        emit(result, [
+          `stopped replicating ${name}`,
+          `unpinned: ${result.released.length === 0 ? "nothing" : result.released.join(", ")}`,
+          ...(result.kept.length === 0
+            ? []
+            : [
+                `kept:     ${result.kept.join(", ")} (not pinned by this replica, used by another site, or --keep-pins)`,
+              ]),
+        ]);
+      }),
     );
 
   program

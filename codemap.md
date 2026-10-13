@@ -25,12 +25,13 @@ packages/kubo/src/index.ts
 
 packages/cli/src/
   index.ts          commander wiring, --json output, error → exit code 1
-  workflows.ts      publishSite, replicateSite, verifyComplete, requireImportProfile
+  workflows.ts      publishSite, replicateSite (limits, retention), unreplicateSite,
+                    verifyComplete, requireImportProfile
   keystore.ts       key files (create, load+verify, import, export)
   state.ts          AddressBookStore (petname resolution), ReplicaStateStore
   site.ts           safe deterministic directory reader (no symlinks, no dotfiles by default)
   units.ts          strict parsing of sizes (512MiB) and positive integers for options
-  files.ts          size-limited reads, atomic private writes, no-clobber creates
+  files.ts          size-limited reads, atomic private writes, no-clobber creates, PID lock
 ```
 
 ## Operations
@@ -50,5 +51,6 @@ packages/cli/src/
 
 - Untrusted data (records, Kubo responses, address books, key files, site directories) is validated at the boundary, and failures are closed.
 - A replica reports a version only after `dag/stat` succeeds offline and the version fits the site's limits.
+- A replica only unpins versions listed in its `ownedPins` that no other replicated site uses.
 - Records must point to `/ipfs/<cid>`. Replicas never roll back below a verified sequence.
 - Formats change only with an ADR, updated `spec/README.md`, and fixtures.

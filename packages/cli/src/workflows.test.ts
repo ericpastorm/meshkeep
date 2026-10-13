@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -6,7 +6,7 @@ import { type IpnsRecordEntry, type KuboClient, KuboError, type PinProgress } fr
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DEFAULT_REPLICA_LIMITS, ReplicaStateStore } from "./state.js";
-import { replicateSite } from "./workflows.js";
+import { replicateSite, unreplicateSite } from "./workflows.js";
 
 const NAME = "k51qzi5uqu5dg9ufswxt229ntzdy7p4125xzv5rtyjso89ajdujg6csfxcj260";
 const V1 = "bafybeih3ovsytsdcmgcqyl6txyquj5nsd3d2svk3ezczlahga7dfql3mki";
@@ -19,19 +19,27 @@ interface FakeOptions {
   progress?: PinProgress[];
   /** What a complete local walk reports. */
   stat?: { blocks: number; bytes: number };
+  /** The record's version is already pinned before the workflow runs. */
   pinned?: boolean;
+  /** Recursive pins on the simulated node; share one set to simulate several runs on it. */
+  pins?: Set<string>;
   pinFailure?: KuboError;
+  unpinFailure?: KuboError;
+  putFailure?: KuboError;
 }
 
 /** A stand-in for Kubo that serves one record and records what the workflow asks it to do. */
 function fakeKubo(entry: Pick<IpnsRecordEntry, "value" | "sequence">, fake: FakeOptions = {}) {
   const calls: string[] = [];
-  let pinned = fake.pinned ?? false;
+  const pins = fake.pins ?? new Set<string>();
+  if (fake.pinned === true) {
+    pins.add(entry.value.replace("/ipfs/", ""));
+  }
   const kubo = {
     getRecord: async () => Uint8Array.of(1, 2, 3),
     inspectRecord: async () => ({ ...entry, validity: "2027-01-01T00:00:00Z", ttlNanoseconds: 1 }),
     declaredSize: async () => fake.declared ?? 1083,
-    isPinnedRecursively: async () => pinned,
+    isPinnedRecursively: async (cid: string) => pins.has(cid),
     pinRecursive: async (
       cid: string,
       options: { onProgress?: (progress: PinProgress) => void } = {},
@@ -43,18 +51,24 @@ function fakeKubo(entry: Pick<IpnsRecordEntry, "value" | "sequence">, fake: Fake
       for (const update of fake.progress ?? []) {
         options.onProgress?.(update);
       }
-      pinned = true;
+      pins.add(cid);
     },
     unpin: async (cid: string) => {
       calls.push(`unpin ${cid}`);
-      pinned = false;
+      if (fake.unpinFailure !== undefined) {
+        throw fake.unpinFailure;
+      }
+      return pins.delete(cid);
     },
     localDagStat: async () => fake.stat ?? { blocks: 8, bytes: 1083 },
     putRecord: async () => {
       calls.push("put");
+      if (fake.putFailure !== undefined) {
+        throw fake.putFailure;
+      }
     },
   };
-  return { kubo: kubo as unknown as KuboClient, calls };
+  return { kubo: kubo as unknown as KuboClient, calls, pins };
 }
 
 let home: string;
@@ -179,5 +193,159 @@ describe("replicateSite limits", () => {
     const grown = fakeKubo({ value: `/ipfs/${V2}`, sequence: 1 }, { declared: 5000 });
     await expect(replicateSite(grown.kubo, state, NAME)).rejects.toThrow("limit of 4096 bytes");
     expect((await state.load())[0]?.cid).toBe(V1);
+  });
+});
+
+describe("pin ownership and retention", () => {
+  const NAME_B = "k51qzi5uqu5dhlgajymjxratoeu244ymvjb2z3f9jrmsgaqyj09k60o5diyr2s";
+  const v1 = { value: `/ipfs/${V1}`, sequence: 0 };
+  const v2 = { value: `/ipfs/${V2}`, sequence: 1 };
+
+  it("owns only the pins it creates", async () => {
+    expect(await replicateSite(fakeKubo(v1).kubo, state, NAME)).toMatchObject({
+      ownedPins: [V1],
+    });
+    expect(await replicateSite(fakeKubo(v1, { pinned: true }).kubo, state, NAME_B)).toMatchObject({
+      ownedPins: [],
+    });
+  });
+
+  it("keeps every version by default", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    const result = await replicateSite(fakeKubo(v2, { pins }).kubo, state, NAME);
+
+    expect(result).toMatchObject({ keep: 0, versions: [V1, V2], pruned: [] });
+    expect([...pins]).toEqual([V1, V2]);
+  });
+
+  it("prunes versions beyond --keep only after the new one is complete", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    const second = fakeKubo(v2, { pins });
+    const result = await replicateSite(second.kubo, state, NAME, { keep: 1 });
+
+    expect(result).toMatchObject({ keep: 1, versions: [V2], ownedPins: [V2], pruned: [V1] });
+    expect(second.calls).toEqual([`pin ${V2}`, "put", `unpin ${V1}`]);
+    expect([...pins]).toEqual([V2]);
+    expect((await state.load())[0]).toMatchObject({ keep: 1, versions: [V2] });
+  });
+
+  it("never unpins a version this replica did not pin", async () => {
+    const pins = new Set<string>([V1]);
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    const second = fakeKubo(v2, { pins });
+    const result = await replicateSite(second.kubo, state, NAME, { keep: 1 });
+
+    expect(result).toMatchObject({ versions: [V2], pruned: [] });
+    expect(second.calls).not.toContain(`unpin ${V1}`);
+    expect(pins.has(V1)).toBe(true);
+  });
+
+  it("never unpins a version another replicated site still uses", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME_B);
+    const result = await replicateSite(fakeKubo(v2, { pins }).kubo, state, NAME, { keep: 1 });
+
+    expect(result.pruned).toEqual([]);
+    expect(pins.has(V1)).toBe(true);
+  });
+
+  it("keeps the current version even when the publisher points back to an old one", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    await replicateSite(fakeKubo(v2, { pins }).kubo, state, NAME);
+    const rollback = { value: `/ipfs/${V1}`, sequence: 2 };
+    const result = await replicateSite(fakeKubo(rollback, { pins }).kubo, state, NAME, { keep: 1 });
+
+    expect(result).toMatchObject({ cid: V1, versions: [V1], pruned: [V2] });
+    expect([...pins]).toEqual([V1]);
+  });
+
+  it("records the new version and retries later when an old one cannot be unpinned", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    const failing = fakeKubo(v2, { pins, unpinFailure: new KuboError("pin/rm", "busy") });
+    const result = await replicateSite(failing.kubo, state, NAME, { keep: 1 });
+
+    expect(result).toMatchObject({ cid: V2, versions: [V1, V2], ownedPins: [V1, V2], pruned: [] });
+    const retried = await replicateSite(fakeKubo(v2, { pins }).kubo, state, NAME);
+    expect(retried).toMatchObject({ versions: [V2], pruned: [V1] });
+  });
+
+  it("records a complete version even when re-putting its record fails", async () => {
+    const failing = fakeKubo(v1, { putFailure: new KuboError("name/put", "no peers") });
+
+    await expect(replicateSite(failing.kubo, state, NAME)).rejects.toThrow(
+      `replicated ${V1}, but could not re-put its record`,
+    );
+    expect((await state.load())[0]).toMatchObject({ cid: V1, ownedPins: [V1] });
+  });
+});
+
+describe("unreplicateSite", () => {
+  const v1 = { value: `/ipfs/${V1}`, sequence: 0 };
+  const v2 = { value: `/ipfs/${V2}`, sequence: 1 };
+
+  it("forgets the site and unpins only what it owns", async () => {
+    const pins = new Set<string>([V1]);
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    await replicateSite(fakeKubo(v2, { pins }).kubo, state, NAME);
+
+    const result = await unreplicateSite(fakeKubo(v2, { pins }).kubo, state, NAME);
+    expect(result).toEqual({ name: NAME, released: [V2], kept: [V1], failed: [] });
+    expect([...pins]).toEqual([V1]);
+    expect(await state.load()).toEqual([]);
+  });
+
+  it("leaves every pin in place with keepPins", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    const result = await unreplicateSite(fakeKubo(v1, { pins }).kubo, state, NAME, {
+      keepPins: true,
+    });
+
+    expect(result).toMatchObject({ released: [], kept: [V1] });
+    expect(pins.has(V1)).toBe(true);
+    expect(await state.load()).toEqual([]);
+  });
+
+  it("keeps the site recorded when an unpin fails, so it can be retried", async () => {
+    const pins = new Set<string>();
+    await replicateSite(fakeKubo(v1, { pins }).kubo, state, NAME);
+    const failing = fakeKubo(v1, { pins, unpinFailure: new KuboError("pin/rm", "busy") });
+
+    await expect(unreplicateSite(failing.kubo, state, NAME)).rejects.toThrow(
+      "is still recorded, run again",
+    );
+    expect(await state.load()).toHaveLength(1);
+    await expect(unreplicateSite(fakeKubo(v1, { pins }).kubo, state, NAME)).resolves.toMatchObject({
+      released: [V1],
+    });
+  });
+
+  it("refuses a site that is not replicated", async () => {
+    await expect(unreplicateSite(fakeKubo(v1).kubo, state, NAME)).rejects.toThrow(
+      "is not replicated on this node",
+    );
+  });
+});
+
+describe("replica state compatibility", () => {
+  it("loads state written before retention existed as keep-all with no owned pins", async () => {
+    await writeFile(
+      join(home, "replicas.json"),
+      JSON.stringify({
+        format: "meshkeep-replica-state-v1",
+        sites: [{ name: NAME, cid: V1, sequence: 0, validity: "x", versions: [V1] }],
+      }),
+    );
+
+    expect((await state.load())[0]).toMatchObject({
+      keep: 0,
+      ownedPins: [],
+      ...DEFAULT_REPLICA_LIMITS,
+    });
   });
 });

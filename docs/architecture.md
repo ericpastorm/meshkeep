@@ -41,7 +41,11 @@ static dir ──► read safely ──► Kubo add ──► pin ──► find
 
 - `keys/<label>.key`: `libp2p-protobuf-cleartext` Ed25519 keys. Kubo receives a copy named `meshkeep-<label>` when publishing.
 - `address-book.json`: the user's address book, in canonical `meshkeep-address-book-v1` format.
-- `replicas.json`: the sites this node replicates, with the newest verified sequence, every pinned version, and the site's limits. This is the replica's rollback guard.
+- `replicas.json`: the sites this node replicates, with the newest verified sequence, the versions kept, the site's limits and retention (`keep`), and `ownedPins`, the versions whose pin this replica created. It is the replica's rollback guard. Every read-modify-write holds `replicas.json.lock`, which contains the holder's PID; a lock whose process no longer exists is taken over.
+
+### Retention And Pin Ownership
+
+Kubo pins have no owner, so the replica records which pins it created. Retention (`--keep N`) and `unreplicate` only unpin those, and only when no other replicated site lists the version, so a pin the operator or `meshkeep publish` made on the same node survives. Old versions are dropped only after the new version is complete and recorded. The current version always moves to the end of the history, so it is never dropped. Unpinning is idempotent, and a failed unpin leaves the version recorded for the next run. A complete version is recorded even if re-putting its record fails, because losing track of a pin this run created would make it impossible to release later.
 
 ### Replica Limits
 

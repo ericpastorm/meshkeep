@@ -28,3 +28,14 @@ export function parsePositiveInteger(input: string): number {
   }
   return value;
 }
+
+/** Parses a retention count: a positive integer, or `all` (returned as 0). */
+export function parseKeepCount(input: string): number {
+  if (input === "all") {
+    return 0;
+  }
+  if (!/^[1-9]\d*$/.test(input) || !Number.isSafeInteger(Number(input))) {
+    throw new CliError(`expected a positive integer or "all", got ${JSON.stringify(input)}`);
+  }
+  return Number(input);
+}

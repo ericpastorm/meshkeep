@@ -48,6 +48,8 @@ meshkeep sync                            # ejecútalo desde cron al menos cada 1
 
 Las réplicas solo descargan lo que han aceptado guardar. Cada web tiene un límite de tamaño y de bloques (por defecto 2 GiB y 250.000 bloques). Se ajusta con `replicate --max-size 512MiB --max-blocks 50000`; el valor se recuerda y `sync` lo aplica. Las versiones que superan el límite se rechazan y no se fijan. Una descarga interrumpida o que agota el tiempo (`--fetch-timeout`, 30 minutos por defecto) no registra nada, y la siguiente ejecución continúa desde los bloques ya descargados.
 
+Todas las versiones se conservan salvo que decidas otra cosa: `replicate --keep 3` mantiene las tres versiones más recientes (y `sync` lo recuerda), y `meshkeep unreplicate su-blog` deja de seguir una web. En ambos casos solo se quitan los pins que puso la propia réplica, nunca uno que hayas puesto tú o `meshkeep publish` en el mismo nodo.
+
 Visita una web a través del gateway de cualquier nodo Kubo: `http://127.0.0.1:8080/ipns/k51…/`.
 
 Mover la publicación a otra máquina:

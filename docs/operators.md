@@ -122,7 +122,7 @@ meshkeep replicate their-blog
 4. Pins it, then confirms every block is stored locally.
 5. Re-puts the signed record into the DHT.
 
-Nothing is recorded unless every step passes. Previous versions stay pinned.
+Nothing is recorded unless every step passes. Previous versions stay pinned unless you set a retention policy (below).
 
 ### Limits
 
@@ -172,12 +172,23 @@ ipfs repo gc     # frees unpinned blocks; an interrupted fetch then starts over
 
 Alternatively, run the daemon with `ipfs daemon --enable-gc`, which collects garbage periodically according to `Datastore.StorageMax` and `Datastore.GCPeriod`.
 
+### Keep Fewer Versions
+
+By default a replica keeps every version it has replicated, which is the most useful thing for an archive. To keep only the most recent ones:
+
+```sh
+meshkeep replicate their-blog --keep 3      # or --keep all to go back to keeping everything
+```
+
+The setting is remembered and applied by `sync`. Old versions are dropped only after the new one is complete, and the current version is never dropped, even if the publisher points the address back at an older one.
+
 ### Stop Replicating A Site
 
-There is no command for this yet. It is planned together with retention and pruning in v0.2. For now:
+```sh
+meshkeep unreplicate their-blog             # --keep-pins leaves every pin in place
+```
 
-1. Delete the site's entry from `~/.config/meshkeep/replicas.json`.
-2. Run `ipfs pin rm <cid>` for each of its `versions`, unless another site in the file uses the same CID.
+Retention and `unreplicate` unpin a version only when **this replica created the pin** and no other replicated site still uses it. A pin you made yourself, or one `meshkeep publish` made for your own site on the same node, is never removed. Sites replicated before Meshkeep tracked pin ownership (v0.1) report their old pins as `kept`; unpin those yourself with `ipfs pin rm <cid>` if you no longer want them. If an unpin fails, the site stays recorded and you can simply run the command again.
 
 ## 5. Visit Sites
 

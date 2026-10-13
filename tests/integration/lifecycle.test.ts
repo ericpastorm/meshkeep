@@ -178,4 +178,26 @@ describe.sequential("site lifecycle", () => {
     expect(result.exitCode).toBe(1);
     expect(JSON.parse(result.stdout)).toMatchObject({ cid: V2_CID, complete: false });
   });
+
+  it("retention keeps only the newest version, and sync remembers it", async () => {
+    const kubo = cluster.node("replica-2").kubo;
+    const kept = await meshkeep("replica-2", "replicate", "my-site", "--keep", "1");
+
+    expect(kept).toMatchObject({ cid: V2_CID, keep: 1, versions: [V2_CID], pruned: [V1_CID] });
+    expect(await kubo.isPinnedRecursively(V1_CID)).toBe(false);
+    expect(await kubo.isPinnedRecursively(V2_CID)).toBe(true);
+
+    const synced = (await meshkeep("replica-2", "sync")) as { sites: Record<string, unknown>[] };
+    expect(synced.sites[0]).toMatchObject({ ok: true, keep: 1, versions: [V2_CID], pruned: [] });
+  });
+
+  it("unreplicate stops following a site and releases the pins it created", async () => {
+    const kubo = cluster.node("replica-1").kubo;
+    const result = await meshkeep("replica-1", "unreplicate", "my-site");
+
+    expect(result).toEqual({ name: siteName, released: [V1_CID, V2_CID], kept: [], failed: [] });
+    expect(await kubo.isPinnedRecursively(V1_CID)).toBe(false);
+    expect(await kubo.isPinnedRecursively(V2_CID)).toBe(false);
+    expect(await meshkeep("replica-1", "sync")).toEqual({ sites: [] });
+  });
 });

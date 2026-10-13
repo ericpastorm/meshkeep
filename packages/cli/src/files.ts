@@ -68,3 +68,54 @@ export async function createPrivateFile(path: string, data: Uint8Array): Promise
     await handle.close();
   }
 }
+
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but belongs to someone else.
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Runs `task` while holding an exclusive lock file containing this process's PID. A lock
+ * left behind by a process that no longer exists is removed; a live holder is waited for up
+ * to `waitMs`, then reported.
+ */
+export async function withFileLock<T>(
+  path: string,
+  task: () => Promise<T>,
+  options: { waitMs?: number; pollMs?: number } = {},
+): Promise<T> {
+  const deadline = Date.now() + (options.waitMs ?? 10_000);
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  while (true) {
+    try {
+      const handle = await open(path, "wx", 0o600);
+      await handle.writeFile(`${process.pid}\n`);
+      await handle.close();
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+    }
+    const holder = Number((await readOptionalText(path, 64))?.trim());
+    if (!Number.isSafeInteger(holder) || holder <= 0 || !processExists(holder)) {
+      // Stale or unreadable: the holder is gone. Remove it and try again.
+      await rm(path, { force: true });
+      continue;
+    }
+    if (Date.now() >= deadline) {
+      throw new CliError(`${path} is held by another meshkeep process (pid ${holder}); try again`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? 200));
+  }
+  try {
+    return await task();
+  } finally {
+    await rm(path, { force: true });
+  }
+}

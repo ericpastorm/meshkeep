@@ -48,6 +48,8 @@ meshkeep sync                            # run this from cron at least every 12 
 
 Replicas only fetch what they agreed to hold. Each site has a size and block limit (by default 2 GiB and 250,000 blocks). Set it with `replicate --max-size 512MiB --max-blocks 50000`; the value is remembered, and `sync` applies it. Versions over the limit are refused and left unpinned. An interrupted or timed-out fetch (`--fetch-timeout`, default 30 minutes) records nothing, and the next run resumes from the blocks already downloaded.
 
+Every version stays pinned unless you choose otherwise: `replicate --keep 3` keeps the three most recent versions (remembered for `sync`), and `meshkeep unreplicate their-blog` stops following a site. Both only ever unpin versions this replica pinned itself, never a pin you or `meshkeep publish` made on the same node.
+
 Visit a site through any Kubo node's gateway: `http://127.0.0.1:8080/ipns/k51…/`.
 
 Move publishing to another machine:
