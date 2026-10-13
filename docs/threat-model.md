@@ -40,7 +40,9 @@ A stolen key lets the thief publish under the address, and a lost key freezes it
 
 ### Malicious or incomplete content from peers
 
-Blocks are verified by CID. A replica that cannot fetch every block fails instead of claiming the version. Size and time limits per site are still to be added (see the roadmap).
+Blocks are verified by CID. A replica that cannot fetch every block fails instead of claiming the version.
+
+A publisher can also publish a huge graph to fill replicas' disks, or a root whose declared size understates the real one. Each replica therefore enforces per-site byte and block limits three times: on the declared size, during the fetch (the request is aborted), and on the exact size afterwards. It also enforces a fetch timeout. Refused versions are not pinned, and nothing is recorded. Remaining gaps: unpinned blocks from a refused or interrupted fetch use disk until Kubo garbage collection runs, and limits apply per site, not as a total across sites.
 
 ### Misleading address books
 

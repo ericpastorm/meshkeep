@@ -2,12 +2,11 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { runCli } from "@meshkeep/cli";
 import { KuboError } from "@meshkeep/kubo";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { cliRunner, FIXTURES, V1_CID, V2_CID } from "./cli.js";
 import { KuboCluster } from "./cluster.js";
 
 /**
@@ -16,52 +15,14 @@ import { KuboCluster } from "./cluster.js";
  * replicas sync → every publisher offline → a fresh visitor still resolves and loads the site.
  */
 
-const FIXTURES = fileURLToPath(new URL("../fixtures/", import.meta.url));
-// Root CIDs are part of the fixture contract: the same bytes and profile must give the same CID.
-const V1_CID = "bafybeih3ovsytsdcmgcqyl6txyquj5nsd3d2svk3ezczlahga7dfql3mki";
-const V2_CID = "bafybeiczekoh2tsak4wy6hhuxr7tmmaqpjfrh5yqckq4rzmnavkk6k5hwq";
 const FILES = ["index.html", "css/style.css", "js/app.js", "img/asset.txt"];
 const REPLICAS = ["replica-1", "replica-2"] as const;
 
 const cluster = new KuboCluster();
-const homes = new Map<string, string>();
 let scratch = "";
 let siteName = "";
 let v1Record: Uint8Array;
-
-/** Runs the CLI in-process as a given role, with its own state directory and Kubo node. */
-async function cli(role: string, ...args: string[]) {
-  let home = homes.get(role);
-  if (home === undefined) {
-    home = await mkdtemp(join(scratch, `${role}-`));
-    homes.set(role, home);
-  }
-  let stdout = "";
-  let stderr = "";
-  let exitCode = 0;
-  await runCli(["node", "meshkeep", "--json", ...args], {
-    env: { MESHKEEP_HOME: home, MESHKEEP_API: cluster.node(role).apiUrl },
-    stdout: (text: string) => {
-      stdout += text;
-    },
-    stderr: (text: string) => {
-      stderr += text;
-    },
-    setExitCode: (code: number) => {
-      exitCode = code;
-    },
-  });
-  return { exitCode, stdout, stderr };
-}
-
-/** Like `cli`, but requires success and returns the parsed JSON result. */
-async function meshkeep(role: string, ...args: string[]) {
-  const result = await cli(role, ...args);
-  if (result.exitCode !== 0) {
-    throw new Error(`meshkeep ${args.join(" ")} failed on ${role}: ${result.stderr}`);
-  }
-  return JSON.parse(result.stdout) as Record<string, unknown>;
-}
+const { cli, meshkeep } = cliRunner(cluster, () => scratch);
 
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 

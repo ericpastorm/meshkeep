@@ -41,7 +41,17 @@ static dir ──► read safely ──► Kubo add ──► pin ──► find
 
 - `keys/<label>.key`: `libp2p-protobuf-cleartext` Ed25519 keys. Kubo receives a copy named `meshkeep-<label>` when publishing.
 - `address-book.json`: the user's address book, in canonical `meshkeep-address-book-v1` format.
-- `replicas.json`: the sites this node replicates, with the newest verified sequence and every pinned version. This is the replica's rollback guard.
+- `replicas.json`: the sites this node replicates, with the newest verified sequence, every pinned version, and the site's limits. This is the replica's rollback guard.
+
+### Replica Limits
+
+A replica fetches a version only within the site's `maxBytes` and `maxBlocks` (default 2 GiB and 250,000 blocks; set with `replicate --max-size/--max-blocks`, remembered for `sync`). There are three barriers, because the publisher controls the bytes:
+
+1. **Declared size.** The root's `CumulativeSize` is checked before anything else is fetched. It is cheap, but it is the publisher's claim.
+2. **While fetching.** `pin/add` progress (blocks and bytes) is watched, and the request is aborted, which cancels the fetch, as soon as either limit is crossed.
+3. **Exact size.** After the pin, an offline `dag/stat` gives the real size. A version over the limit is refused.
+
+A refused version is unpinned when this run created the pin; that also covers an abort racing with Kubo finishing the pin. A fetch that times out (`--fetch-timeout`) records nothing. Blocks already fetched stay in the blockstore unpinned, so the next run resumes from them, and Kubo garbage collection can reclaim them.
 
 ### Kubo Configuration
 

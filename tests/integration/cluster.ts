@@ -37,6 +37,7 @@ export interface KuboNode {
  */
 export class KuboCluster {
   readonly nodes = new Map<string, KuboNode>();
+  private readonly running = new Set<string>();
   private readonly runId = randomBytes(6).toString("hex");
   private readonly network = `meshkeep-it-${this.runId}`;
   private readonly label = `dev.meshkeep.test-run=${this.runId}`;
@@ -61,7 +62,7 @@ export class KuboCluster {
     return node;
   }
 
-  /** Starts a node and connects it to `peers` (default: every running node). */
+  /** Starts a node and connects it to `peers` (default: every other running node). */
   async start(role: string, options: { peers?: readonly string[] } = {}): Promise<KuboNode> {
     const container = `meshkeep-it-${this.runId}-${role}`;
     await docker(
@@ -97,6 +98,7 @@ export class KuboCluster {
   /** Stops a node's container; its repository survives for a later `restart`. */
   async stop(role: string): Promise<void> {
     await docker("stop", "--time", "10", this.node(role).container);
+    this.running.delete(role);
   }
 
   async restart(role: string, options: { peers?: readonly string[] } = {}): Promise<KuboNode> {
@@ -135,12 +137,13 @@ export class KuboCluster {
     }
     const node = { role, container, peerId, apiUrl, gatewayUrl, kubo };
     this.nodes.set(role, node);
+    this.running.add(role);
     return node;
   }
 
   private async connect(role: string, peers?: readonly string[]): Promise<void> {
     const self = this.node(role);
-    const targets = peers ?? [...this.nodes.keys()].filter((candidate) => candidate !== role);
+    const targets = peers ?? [...this.running].filter((candidate) => candidate !== role);
     for (const peer of targets) {
       const target = this.node(peer);
       await self.kubo.connect(`/dns4/${peer}/tcp/4001/p2p/${target.peerId}`);

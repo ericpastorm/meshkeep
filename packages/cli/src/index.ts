@@ -15,13 +15,22 @@ import {
   setEntry,
   VERSION,
 } from "@meshkeep/protocol";
-import { Command, CommanderError, Option } from "commander";
+import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
 import { CliError } from "./errors.js";
 import { readLimitedFile } from "./files.js";
 import { Keystore } from "./keystore.js";
-import { AddressBookStore, ReplicaStateStore } from "./state.js";
-import { publishSite, replicateSite, requireImportProfile, verifyComplete } from "./workflows.js";
+import { AddressBookStore, DEFAULT_REPLICA_LIMITS, ReplicaStateStore } from "./state.js";
+import { parseByteSize, parsePositiveInteger } from "./units.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  DEFAULT_RECORD_TIMEOUT_MS,
+  publishSite,
+  type ReplicateOptions,
+  replicateSite,
+  requireImportProfile,
+  verifyComplete,
+} from "./workflows.js";
 
 export { CliError } from "./errors.js";
 
@@ -54,6 +63,25 @@ export function resolveHome(env: Record<string, string | undefined>): string {
 export function isSupportedNode(version: string): boolean {
   const major = Number(/^(\d+)\./.exec(version)?.[1]);
   return Number.isSafeInteger(major) && major >= MINIMUM_NODE_MAJOR;
+}
+
+/** Adapts a strict parser to commander, which reports InvalidArgumentError as a usage error. */
+function argument<T>(parse: (input: string) => T) {
+  return (input: string): T => {
+    try {
+      return parse(input);
+    } catch (error) {
+      throw new InvalidArgumentError((error as Error).message);
+    }
+  };
+}
+
+const seconds = argument((input) => parsePositiveInteger(input) * 1000);
+
+function fetchTimeoutOption() {
+  return new Option("--fetch-timeout <seconds>", "give up fetching a version after this long")
+    .argParser(seconds)
+    .default(DEFAULT_FETCH_TIMEOUT_MS, String(DEFAULT_FETCH_TIMEOUT_MS / 1000));
 }
 
 export function createProgram(options: CliOptions = {}): Command {
@@ -254,31 +282,63 @@ export function createProgram(options: CliOptions = {}): Command {
   program
     .command("replicate <target>")
     .description("keep a complete copy of a site and keep its address alive")
-    .addOption(new Option("--timeout <seconds>", "record lookup timeout").argParser(Number))
+    .addOption(
+      new Option("--max-size <size>", "refuse versions larger than this (e.g. 512MiB); remembered")
+        .argParser(argument(parseByteSize))
+        .default(undefined, `stored, else ${DEFAULT_REPLICA_LIMITS.maxBytes / 1024 ** 3}GiB`),
+    )
+    .addOption(
+      new Option("--max-blocks <count>", "refuse versions with more blocks than this; remembered")
+        .argParser(argument(parsePositiveInteger))
+        .default(undefined, `stored, else ${DEFAULT_REPLICA_LIMITS.maxBlocks}`),
+    )
+    .addOption(fetchTimeoutOption())
+    .addOption(
+      new Option(
+        "--record-timeout <seconds>",
+        "give up looking for the signed record after this long",
+      )
+        .argParser(seconds)
+        .default(DEFAULT_RECORD_TIMEOUT_MS, String(DEFAULT_RECORD_TIMEOUT_MS / 1000)),
+    )
     .action(
-      action(async (target: string, opts: { timeout?: number }) => {
-        const { name } = await book.resolveTarget(target);
-        const timeoutMs = opts.timeout === undefined ? undefined : opts.timeout * 1000;
-        const result = await replicateSite(
-          kubo(),
-          replicas,
-          name,
-          timeoutMs === undefined ? {} : { timeoutMs },
-        );
-        emit(result, [
-          `${result.updated ? "updated" : "current"} ${name}`,
-          `cid:      ${result.cid} (${result.blocks} blocks, ${result.bytes} bytes, complete)`,
-          `sequence: ${result.sequence}`,
-          `versions: ${result.versions.length} pinned`,
-        ]);
-      }),
+      action(
+        async (
+          target: string,
+          opts: {
+            maxSize?: number;
+            maxBlocks?: number;
+            fetchTimeout: number;
+            recordTimeout: number;
+          },
+        ) => {
+          const { name } = await book.resolveTarget(target);
+          const replicateOptions: ReplicateOptions = {
+            recordTimeoutMs: opts.recordTimeout,
+            fetchTimeoutMs: opts.fetchTimeout,
+            limits: {
+              ...(opts.maxSize === undefined ? {} : { maxBytes: opts.maxSize }),
+              ...(opts.maxBlocks === undefined ? {} : { maxBlocks: opts.maxBlocks }),
+            },
+          };
+          const result = await replicateSite(kubo(), replicas, name, replicateOptions);
+          emit(result, [
+            `${result.updated ? "updated" : "current"} ${name}`,
+            `cid:      ${result.cid} (${result.blocks} blocks, ${result.bytes} bytes, complete)`,
+            `sequence: ${result.sequence}`,
+            `versions: ${result.versions.length} pinned`,
+            `limits:   ${result.maxBytes} bytes / ${result.maxBlocks} blocks`,
+          ]);
+        },
+      ),
     );
 
   program
     .command("sync")
-    .description("re-run replicate for every site this node replicates")
+    .description("re-run replicate for every site this node replicates, with its stored limits")
+    .addOption(fetchTimeoutOption())
     .action(
-      action(async () => {
+      action(async (opts: { fetchTimeout: number }) => {
         const sites = await replicas.load();
         const client = kubo();
         const results: object[] = [];
@@ -286,7 +346,9 @@ export function createProgram(options: CliOptions = {}): Command {
         let failed = 0;
         for (const site of sites) {
           try {
-            const result = await replicateSite(client, replicas, site.name);
+            const result = await replicateSite(client, replicas, site.name, {
+              fetchTimeoutMs: opts.fetchTimeout,
+            });
             results.push({ ok: true, ...result });
             lines.push(`${result.updated ? "updated" : "current"} ${site.name} ${result.cid}`);
           } catch (error) {

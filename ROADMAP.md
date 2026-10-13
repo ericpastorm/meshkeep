@@ -12,9 +12,9 @@ Static websites that anyone can publish for free under a key-based address, that
 - [x] Kubo RPC adapter that refuses non-loopback endpoints by default.
 - [x] CLI: `key create/list/export/import`, `publish`, `resolve`, `replicate`, `sync`, `verify`, `book add/remove/list/export/import`, `doctor`, `--json` output.
 - [x] Automated integration test on a private five-node Kubo network: publish v1, two complete replicas, publisher offline, key moved, v2, sync, every publisher offline with a fresh visitor still resolving and loading the site, rejection of tampered and rolled-back records, and fail-closed `verify`.
-- [ ] Integration job green in GitHub Actions.
+- [x] Integration job green in GitHub Actions.
 - [ ] Operator guide: Kubo setup for publishers and replicas, `sync` scheduling, key backup.
-- [ ] Bounded replication: per-site size and block limits, plus tests for interrupted transfers and timeouts.
+- [x] Bounded replication: per-site size and block limits checked on the declared size, during the fetch, and after it; fetch timeouts; an interrupted transfer records nothing and resumes on the next run.
 
 ## v0.2 Replica Daemon
 
@@ -57,3 +57,5 @@ These items need an ADR before any work starts:
 - 2026-07-21: Same-host Kubo lab showed deterministic `unixfs-v1-2025` CIDs and complete replica retention with the origin offline.
 - 2026-07-29: Same-host lab showed signed IPNS v1 and v2 under one key moved between publishers, plus native rejection of invalid, stale, and malformed records.
 - 2026-10-09: Direction changed by [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md). Manual Bash labs replaced by `pnpm test:integration`, which passed 9/9 locally (Docker 29.7.2, Kubo 0.42.0 pinned by digest, Node 26.8.2) in about 30 seconds with full cleanup. `pnpm check` passed with 83 unit tests. The fixture root CIDs match the earlier labs.
+- 2026-10-09: CI green on GitHub for the first time since July. Both `check` and `integration` passed on PR #1 and again on `main` (`c4675dc`).
+- 2026-10-13: Bounded replication. `pnpm check` passed with 122 unit tests. `pnpm test:integration` passed 12/12 in three consecutive local runs (Docker 29.7.2, Kubo 0.42.0), with no leftover containers or networks. The new suite covers refusal by declared size, refusal by block count during the fetch with the pin removed, and a fetch interrupted by publisher shutdown that records nothing and later resumes to a complete replica.
