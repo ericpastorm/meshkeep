@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseByteSize, parsePositiveInteger } from "./units.js";
+import { parseByteSize, parseKeepCount, parsePositiveInteger } from "./units.js";
 
 describe("parseByteSize", () => {
   it.each([
@@ -36,5 +36,16 @@ describe("parsePositiveInteger", () => {
 
   it.each(["", "0", "-3", "1.5", "1e3", "abc", "9".repeat(20)])("rejects %j", (input) => {
     expect(() => parsePositiveInteger(input)).toThrow("expected a positive integer");
+  });
+});
+
+describe("parseKeepCount", () => {
+  it('parses positive counts and "all" (as 0)', () => {
+    expect(parseKeepCount("3")).toBe(3);
+    expect(parseKeepCount("all")).toBe(0);
+  });
+
+  it.each(["", "0", "-1", "ALL", "1.5", "none"])("rejects %j", (input) => {
+    expect(() => parseKeepCount(input)).toThrow('expected a positive integer or "all"');
   });
 });

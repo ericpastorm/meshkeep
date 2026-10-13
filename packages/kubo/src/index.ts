@@ -313,8 +313,17 @@ export class KuboClient {
     }
   }
 
-  async unpin(cid: string): Promise<void> {
-    await this.json("pin/rm", { arg: cid, recursive: true });
+  /** Removes a recursive pin. Returns false when the CID was not (or not directly) pinned. */
+  async unpin(cid: string): Promise<boolean> {
+    try {
+      await this.json("pin/rm", { arg: cid, recursive: true });
+      return true;
+    } catch (error) {
+      if (error instanceof KuboError && /not pinned/.test(error.message)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**
