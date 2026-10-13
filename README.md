@@ -1,5 +1,7 @@
 # Meshkeep
 
+**English** · [Español](README.es.md)
+
 Host static websites on a peer-to-peer network: free addresses, no servers to rent, and no single point anyone can switch off.
 
 > **Status: early development (v0.1).** Publishing, replication, and address books work end to end and are tested against real Kubo nodes. Interfaces and formats may still change. Use disposable keys and public content only.
