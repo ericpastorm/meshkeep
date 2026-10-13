@@ -64,6 +64,16 @@ describe("environment", () => {
     expect(result.stderr).toContain("unknown command");
   });
 
+  it.each([
+    ["--max-size", "1GB", "invalid size"],
+    ["--max-blocks", "0", "expected a positive integer"],
+    ["--fetch-timeout", "soon", "expected a positive integer"],
+  ])("reports invalid %s %s as a usage error", async (option, value, message) => {
+    const result = await run("replicate", NAME, option, value);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(message);
+  });
+
   it("refuses a non-loopback Kubo RPC URL before connecting", async () => {
     const result = await run("--api", "http://192.0.2.10:5001", "resolve", NAME);
     expect(result.exitCode).toBe(1);

@@ -4,10 +4,15 @@ import { parseContentCid, UNIXFS_PROFILE, UNIXFS_PROFILE_IMPORT_CONFIG } from "@
 import { CliError } from "./errors.js";
 import type { StoredKey } from "./keystore.js";
 import { readSite } from "./site.js";
-import type { ReplicaStateStore, ReplicatedSite } from "./state.js";
+import {
+  DEFAULT_REPLICA_LIMITS,
+  type ReplicaLimits,
+  type ReplicaStateStore,
+  type ReplicatedSite,
+} from "./state.js";
 
-const RECORD_LOOKUP_TIMEOUT_MS = 30_000;
-const PIN_TIMEOUT_MS = 30 * 60_000;
+export const DEFAULT_RECORD_TIMEOUT_MS = 30_000;
+export const DEFAULT_FETCH_TIMEOUT_MS = 30 * 60_000;
 /** Kubo names its keys; Meshkeep prefixes its own so it never touches the operator's. */
 const KUBO_KEY_PREFIX = "meshkeep-";
 
@@ -87,7 +92,7 @@ export async function publishSite(
 
   // A key moved from another machine has no local history, so continue the sequence from the
   // newest record the network knows about. Equal or lower sequences would lose to it.
-  const previous = await findRecord(kubo, key.name, RECORD_LOOKUP_TIMEOUT_MS);
+  const previous = await findRecord(kubo, key.name, DEFAULT_RECORD_TIMEOUT_MS);
   if (previous === undefined) {
     options.log(`no existing record found for ${key.name}; publishing a new name`);
   }
@@ -101,7 +106,7 @@ export async function publishSite(
   if (published !== key.name) {
     throw new CliError(`Kubo published ${published}, expected ${key.name}`);
   }
-  const current = await findRecord(kubo, key.name, RECORD_LOOKUP_TIMEOUT_MS);
+  const current = await findRecord(kubo, key.name, DEFAULT_RECORD_TIMEOUT_MS);
   if (current === undefined || current.entry.value !== `/ipfs/${cid}`) {
     throw new CliError(`published record for ${key.name} could not be read back`);
   }
@@ -122,18 +127,42 @@ export interface ReplicateResult extends ReplicatedSite {
   readonly bytes: number;
 }
 
+export interface ReplicateOptions {
+  readonly recordTimeoutMs?: number;
+  readonly fetchTimeoutMs?: number;
+  /** Overrides, then remembers, this site's limits; otherwise stored limits or defaults apply. */
+  readonly limits?: Partial<ReplicaLimits>;
+}
+
+class LimitExceeded extends CliError {}
+
+function describeLimits(limits: ReplicaLimits): string {
+  return `${limits.maxBytes} bytes / ${limits.maxBlocks} blocks`;
+}
+
+/** Turns a fetch deadline into an operator message; other failures pass through. */
+function fetchFailure(error: unknown, name: string, cid: string, timeoutMs: number): unknown {
+  if (error instanceof KuboError && error.timedOut) {
+    return new CliError(
+      `${name}: fetching ${cid} timed out after ${Math.round(timeoutMs / 1000)}s; nothing was ` +
+        "recorded, and blocks fetched so far are kept so the next run resumes",
+    );
+  }
+  return error;
+}
+
 /**
  * Makes this node a complete replica of a site's current version: verify the signed record,
- * refuse rollbacks, pin and verify the whole graph, then re-put the record so the name stays
- * resolvable without the publisher.
+ * refuse rollbacks, fetch the whole graph within the site's limits, then re-put the record so
+ * the name stays resolvable without the publisher. Nothing is recorded unless every step passes.
  */
 export async function replicateSite(
   kubo: KuboClient,
   state: ReplicaStateStore,
   name: string,
-  options: { timeoutMs?: number } = {},
+  options: ReplicateOptions = {},
 ): Promise<ReplicateResult> {
-  const found = await findRecord(kubo, name, options.timeoutMs ?? RECORD_LOOKUP_TIMEOUT_MS);
+  const found = await findRecord(kubo, name, options.recordTimeoutMs ?? DEFAULT_RECORD_TIMEOUT_MS);
   if (found === undefined) {
     throw new CliError(`no valid record found for ${name}`);
   }
@@ -151,8 +180,57 @@ export async function replicateSite(
     );
   }
 
-  await kubo.pinRecursive(cid, { timeoutMs: PIN_TIMEOUT_MS });
-  const stat = await kubo.localDagStat(cid);
+  const limits: ReplicaLimits = {
+    maxBytes: options.limits?.maxBytes ?? known?.maxBytes ?? DEFAULT_REPLICA_LIMITS.maxBytes,
+    maxBlocks: options.limits?.maxBlocks ?? known?.maxBlocks ?? DEFAULT_REPLICA_LIMITS.maxBlocks,
+  };
+  const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+  const overLimit = (detail: string) =>
+    new LimitExceeded(
+      `${name}: version ${cid} ${detail}, over this replica's limit of ${describeLimits(limits)}; ` +
+        "not replicated",
+    );
+
+  // 1. Cheap early filter: the root's own claim about the DAG size. Only the root is fetched.
+  let declared: number;
+  try {
+    declared = await kubo.declaredSize(cid, { timeoutMs: fetchTimeoutMs });
+  } catch (error) {
+    throw fetchFailure(error, name, cid, fetchTimeoutMs);
+  }
+  if (declared > limits.maxBytes) {
+    throw overLimit(`declares ${declared} bytes`);
+  }
+
+  // 2. Enforce the limits while fetching, since the declared size can lie; 3. check exactly after.
+  const alreadyPinned = await kubo.isPinnedRecursively(cid);
+  let stat: { blocks: number; bytes: number };
+  try {
+    try {
+      await kubo.pinRecursive(cid, {
+        timeoutMs: fetchTimeoutMs,
+        onProgress: ({ blocks, bytes }) => {
+          if (blocks > limits.maxBlocks || bytes > limits.maxBytes) {
+            throw overLimit(`reached ${bytes} bytes / ${blocks} blocks while fetching`);
+          }
+        },
+      });
+    } catch (error) {
+      throw fetchFailure(error, name, cid, fetchTimeoutMs);
+    }
+    stat = await kubo.localDagStat(cid);
+    if (stat.bytes > limits.maxBytes || stat.blocks > limits.maxBlocks) {
+      throw overLimit(`has ${stat.bytes} bytes / ${stat.blocks} blocks`);
+    }
+  } catch (error) {
+    // Never leave behind a pin this call created for a version it refused. An abort can race
+    // with Kubo finishing the pin, so check rather than assume.
+    if (error instanceof LimitExceeded && !alreadyPinned && (await kubo.isPinnedRecursively(cid))) {
+      await kubo.unpin(cid);
+    }
+    throw error;
+  }
+
   await kubo.putRecord(name, record);
 
   const versions = known === undefined ? [cid] : [...new Set([...known.versions, cid])];
@@ -162,6 +240,7 @@ export async function replicateSite(
     sequence: entry.sequence,
     validity: entry.validity,
     versions,
+    ...limits,
   };
   await state.save([...sites.filter((candidate) => candidate.name !== name), site]);
   return { ...site, updated: known?.cid !== cid, blocks: stat.blocks, bytes: stat.bytes };

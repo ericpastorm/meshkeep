@@ -6,13 +6,25 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 export class KuboError extends Error {
   readonly command: string;
   readonly status: number | undefined;
+  /** True when the request hit its deadline, while connecting or while streaming the body. */
+  readonly timedOut: boolean;
 
-  constructor(command: string, message: string, status?: number) {
+  constructor(
+    command: string,
+    message: string,
+    options: { status?: number; timedOut?: boolean } = {},
+  ) {
     super(`kubo ${command}: ${message}`);
     this.name = "KuboError";
     this.command = command;
-    this.status = status;
+    this.status = options.status;
+    this.timedOut = options.timedOut ?? false;
   }
+}
+
+export interface PinProgress {
+  readonly blocks: number;
+  readonly bytes: number;
 }
 
 function isLoopbackHost(hostname: string): boolean {
@@ -73,6 +85,21 @@ type Params = Record<string, string | number | boolean | undefined>;
 interface CallOptions {
   readonly body?: FormData;
   readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
+}
+
+/** Converts a failure while sending or reading a request into a KuboError. */
+function transportError(command: string, error: unknown, host: string): KuboError {
+  if (error instanceof KuboError) {
+    return error;
+  }
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return new KuboError(command, "timed out", { timedOut: true });
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return new KuboError(command, "aborted");
+  }
+  return new KuboError(command, `unreachable at ${host}`);
 }
 
 export interface KuboClientOptions {
@@ -105,22 +132,20 @@ export class KuboClient {
         url.searchParams.append(key, String(value));
       }
     }
+    const deadline = AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs);
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
         method: "POST",
         body: options.body ?? null,
-        signal: AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs),
+        signal:
+          options.signal === undefined ? deadline : AbortSignal.any([deadline, options.signal]),
       });
     } catch (error) {
-      const reason =
-        error instanceof Error && error.name === "TimeoutError"
-          ? "timed out"
-          : `unreachable at ${this.apiUrl.host}`;
-      throw new KuboError(command, reason);
+      throw transportError(command, error, this.apiUrl.host);
     }
     if (!response.ok) {
-      const text = await response.text();
+      const text = await this.read(command, () => response.text());
       let message = text.trim() || response.statusText;
       try {
         const parsed = JSON.parse(text) as { Message?: unknown };
@@ -130,30 +155,87 @@ export class KuboClient {
       } catch {
         // Not a Kubo JSON error body; keep the raw text.
       }
-      throw new KuboError(command, message, response.status);
+      throw new KuboError(command, message, { status: response.status });
     }
     return response;
   }
 
-  private async json(command: string, params: Params, options?: CallOptions): Promise<unknown> {
-    const response = await this.call(command, params, options);
-    return response.json() as Promise<unknown>;
+  /** Reads a response body, mapping deadline and transport failures to KuboError. */
+  private async read<T>(command: string, reader: () => Promise<T>): Promise<T> {
+    try {
+      return await reader();
+    } catch (error) {
+      throw transportError(command, error, this.apiUrl.host);
+    }
   }
 
-  /** Kubo streams some commands as newline-delimited JSON; a line may carry an error. */
+  private async json(command: string, params: Params, options?: CallOptions): Promise<unknown> {
+    const response = await this.call(command, params, options);
+    const text = await this.read(command, () => response.text());
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      throw new KuboError(command, "malformed JSON response");
+    }
+  }
+
+  private async bytes(command: string, params: Params, options?: CallOptions) {
+    const response = await this.call(command, params, options);
+    return new Uint8Array(await this.read(command, () => response.arrayBuffer()));
+  }
+
+  /**
+   * Streams a newline-delimited JSON response line by line. Kubo reports some failures as an
+   * error line inside a successful response.
+   */
+  private async *stream(
+    command: string,
+    params: Params,
+    options?: CallOptions,
+  ): AsyncGenerator<Record<string, unknown>> {
+    const response = await this.call(command, params, options);
+    if (response.body === null) {
+      return;
+    }
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffered = "";
+    try {
+      while (true) {
+        const { done, value } = await this.read(command, () => reader.read());
+        buffered += done ? "\n" : value;
+        const lines = buffered.split("\n");
+        buffered = lines.pop() ?? "";
+        for (const text of lines) {
+          if (text.trim() === "") {
+            continue;
+          }
+          let line: Record<string, unknown>;
+          try {
+            line = JSON.parse(text) as Record<string, unknown>;
+          } catch {
+            throw new KuboError(command, "malformed streamed JSON line");
+          }
+          if (typeof line.Message === "string" && line.Type === "error") {
+            throw new KuboError(command, line.Message);
+          }
+          if (typeof line.Err === "string" && line.Err !== "") {
+            throw new KuboError(command, line.Err);
+          }
+          yield line;
+        }
+        if (done) {
+          return;
+        }
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+    }
+  }
+
   private async ndjson(command: string, params: Params, options?: CallOptions) {
-    const text = await (await this.call(command, params, options)).text();
-    const lines = text
-      .split("\n")
-      .filter((line) => line.trim() !== "")
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
-    for (const line of lines) {
-      if (typeof line.Message === "string" && line.Type === "error") {
-        throw new KuboError(command, line.Message);
-      }
-      if (typeof line.Err === "string" && line.Err !== "") {
-        throw new KuboError(command, line.Err);
-      }
+    const lines: Record<string, unknown>[] = [];
+    for await (const line of this.stream(command, params, options)) {
+      lines.push(line);
     }
     return lines;
   }
@@ -192,8 +274,58 @@ export class KuboClient {
     return requireString(root?.Hash, "add", "root Hash");
   }
 
-  async pinRecursive(cid: string, options: { timeoutMs?: number } = {}): Promise<void> {
-    await this.json("pin/add", { arg: cid, recursive: true, progress: false }, options);
+  /**
+   * Fetches and recursively pins a DAG. `onProgress` sees running totals while Kubo fetches; if
+   * it throws, the request is aborted (which cancels the fetch) and its error is rethrown.
+   * Blocks fetched before an abort stay in the blockstore unpinned.
+   */
+  async pinRecursive(
+    cid: string,
+    options: { timeoutMs?: number; onProgress?: (progress: PinProgress) => void } = {},
+  ): Promise<void> {
+    const abort = new AbortController();
+    let pinned = false;
+    try {
+      for await (const line of this.stream(
+        "pin/add",
+        { arg: cid, recursive: true, progress: true },
+        {
+          signal: abort.signal,
+          ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+        },
+      )) {
+        if (typeof line.Progress === "number") {
+          options.onProgress?.({
+            blocks: line.Progress,
+            bytes: typeof line.Bytes === "number" ? line.Bytes : 0,
+          });
+        }
+        if (Array.isArray(line.Pins) && line.Pins.includes(cid)) {
+          pinned = true;
+        }
+      }
+    } catch (error) {
+      abort.abort();
+      throw error;
+    }
+    if (!pinned) {
+      throw new KuboError("pin/add", `response ended without confirming the pin of ${cid}`);
+    }
+  }
+
+  async unpin(cid: string): Promise<void> {
+    await this.json("pin/rm", { arg: cid, recursive: true });
+  }
+
+  /**
+   * Returns the cumulative size the root block declares for its DAG. Only the root is fetched,
+   * and the value is the publisher's claim, so treat it as an early filter, never as proof.
+   */
+  async declaredSize(cid: string, options: { timeoutMs?: number } = {}): Promise<number> {
+    const body = (await this.json("files/stat", { arg: `/ipfs/${cid}` }, options)) as {
+      CumulativeSize?: unknown;
+    };
+    return requireNumber(body.CumulativeSize, "files/stat", "CumulativeSize");
   }
 
   async isPinnedRecursively(cid: string): Promise<boolean> {
@@ -251,15 +383,14 @@ export class KuboClient {
 
   /** Fetches the best signed IPNS record Kubo can find for a name. */
   async getRecord(name: string, options: { timeoutMs?: number } = {}): Promise<Uint8Array> {
-    const response = await this.call("name/get", { arg: name }, options);
-    return new Uint8Array(await response.arrayBuffer());
+    return this.bytes("name/get", { arg: name }, options);
   }
 
   /** Validates and stores a signed record, then puts it to the routing system. */
   async putRecord(name: string, record: Uint8Array): Promise<void> {
     const form = new FormData();
     form.append("file", new Blob([record]), "record");
-    await this.call("name/put", { arg: name }, { body: form });
+    await this.json("name/put", { arg: name }, { body: form });
   }
 
   async inspectRecord(record: Uint8Array, verifyName?: string): Promise<IpnsRecordEntry> {
@@ -308,8 +439,7 @@ export class KuboClient {
   }
 
   async cat(path: string, options: { offline?: boolean } = {}): Promise<Uint8Array> {
-    const response = await this.call("cat", { arg: path, offline: options.offline });
-    return new Uint8Array(await response.arrayBuffer());
+    return this.bytes("cat", { arg: path, offline: options.offline });
   }
 }
 

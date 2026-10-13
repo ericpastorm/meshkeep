@@ -101,3 +101,111 @@ describe("KuboClient", () => {
     await expect(client.version()).rejects.toThrow("kubo version: unreachable at 127.0.0.1:5001");
   });
 });
+
+/** A response whose body yields the given chunks, then optionally fails or stays open. */
+function streamingResponse(chunks: string[], end: "close" | "hang" | Error = "close") {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        if (end === "close") {
+          controller.close();
+        } else if (end instanceof Error) {
+          controller.error(end);
+        }
+      },
+    }),
+  );
+}
+
+describe("KuboClient.pinRecursive", () => {
+  const CID = "bafyroot";
+
+  function pinningKubo(response: () => Response) {
+    let signal: AbortSignal | undefined;
+    const client = new KuboClient({
+      fetch: async (_input, init) => {
+        signal = init?.signal ?? undefined;
+        return response();
+      },
+    });
+    return { client, signal: () => signal };
+  }
+
+  it("streams progress, split across chunk boundaries, until Kubo confirms the pin", async () => {
+    const { client } = pinningKubo(() =>
+      streamingResponse([
+        "{}\n",
+        '{"Progress":3,"By',
+        'tes":300}\n{"Progress":8,"Bytes":1083}\n',
+        `{"Pins":["${CID}"]}\n`,
+      ]),
+    );
+    const progress: unknown[] = [];
+
+    await client.pinRecursive(CID, { onProgress: (update) => progress.push(update) });
+    expect(progress).toEqual([
+      { blocks: 3, bytes: 300 },
+      { blocks: 8, bytes: 1083 },
+    ]);
+  });
+
+  it("aborts the request and rethrows when the progress callback throws", async () => {
+    const { client, signal } = pinningKubo(() =>
+      streamingResponse(['{"Progress":5,"Bytes":10}\n'], "hang"),
+    );
+    const stop = new Error("over limit");
+
+    await expect(
+      client.pinRecursive(CID, {
+        onProgress: () => {
+          throw stop;
+        },
+      }),
+    ).rejects.toBe(stop);
+    expect(signal()?.aborted).toBe(true);
+  });
+
+  it("fails when the stream ends without confirming the pin", async () => {
+    const { client } = pinningKubo(() => streamingResponse(['{"Progress":2,"Bytes":5}\n']));
+
+    await expect(client.pinRecursive(CID)).rejects.toThrow("without confirming the pin");
+  });
+
+  it("reports a deadline hit while streaming the body as a timeout", async () => {
+    const timeout = new DOMException("The operation timed out.", "TimeoutError");
+    const { client } = pinningKubo(() => streamingResponse(["{}\n"], timeout));
+
+    const error = await client.pinRecursive(CID).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(KuboError);
+    expect((error as KuboError).timedOut).toBe(true);
+    expect((error as KuboError).message).toBe("kubo pin/add: timed out");
+  });
+
+  it("rejects malformed streamed lines without leaking a SyntaxError", async () => {
+    const { client } = pinningKubo(() => streamingResponse(["{not json}\n"]));
+
+    await expect(client.pinRecursive(CID)).rejects.toThrow(
+      "kubo pin/add: malformed streamed JSON line",
+    );
+  });
+});
+
+describe("KuboClient.declaredSize", () => {
+  it("returns the root's CumulativeSize", async () => {
+    const { client, calls } = fakeKubo(() => Response.json({ CumulativeSize: 1083 }));
+
+    await expect(client.declaredSize("bafyroot")).resolves.toBe(1083);
+    expect(calls[0]?.pathname).toBe("/api/v0/files/stat");
+    expect(calls[0]?.searchParams.get("arg")).toBe("/ipfs/bafyroot");
+  });
+
+  it("rejects a missing or negative size", async () => {
+    const { client } = fakeKubo(() => Response.json({ CumulativeSize: -1 }));
+
+    await expect(client.declaredSize("bafyroot")).rejects.toThrow("invalid CumulativeSize");
+  });
+});

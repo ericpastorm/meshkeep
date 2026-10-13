@@ -44,6 +44,8 @@ meshkeep replicate their-blog            # full copy + keeps the address alive
 meshkeep sync                            # run this from cron at least every 12 hours
 ```
 
+Replicas only fetch what they agreed to hold. Each site has a size and block limit (by default 2 GiB and 250,000 blocks). Set it with `replicate --max-size 512MiB --max-blocks 50000`; the value is remembered, and `sync` applies it. Versions over the limit are refused and left unpinned. An interrupted or timed-out fetch (`--fetch-timeout`, default 30 minutes) records nothing, and the next run resumes from the blocks already downloaded.
+
 Visit a site through any Kubo node's gateway: `http://127.0.0.1:8080/ipns/k51…/`.
 
 Move publishing to another machine:
@@ -90,7 +92,7 @@ pnpm check              # lint, typecheck, unit tests, build
 pnpm test:integration   # needs Docker; starts five Kubo containers on a private network
 ```
 
-The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected.
+The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected. A second suite covers replica size and block limits and an interrupted fetch that resumes later.
 
 ## Roadmap
 

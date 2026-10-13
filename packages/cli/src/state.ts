@@ -15,6 +15,7 @@ import {
 
 import { CliError } from "./errors.js";
 import { readOptionalText, writePrivateFile } from "./files.js";
+import { MAX_SITE_BYTES } from "./site.js";
 
 const REPLICA_STATE_FORMAT = "meshkeep-replica-state-v1";
 const MAX_STATE_BYTES = 16 * 1024 * 1024;
@@ -49,7 +50,19 @@ export class AddressBookStore {
   }
 }
 
-export interface ReplicatedSite {
+/** Per-site resource bounds a replica enforces while fetching a version. */
+export interface ReplicaLimits {
+  readonly maxBytes: number;
+  readonly maxBlocks: number;
+}
+
+/** Any site `meshkeep publish` accepts (2 GiB, 100,000 files) fits within these defaults. */
+export const DEFAULT_REPLICA_LIMITS: ReplicaLimits = {
+  maxBytes: MAX_SITE_BYTES,
+  maxBlocks: 250_000,
+};
+
+export interface ReplicatedSite extends ReplicaLimits {
   readonly name: string;
   /** CID selected by the newest record this replica has verified. */
   readonly cid: string;
@@ -80,13 +93,18 @@ export class ReplicaStateStore {
       }
       return value.sites.map((site: Record<string, unknown>) => {
         const sequence = site.sequence;
+        // Limits were added after the first release of this file; absent means the defaults.
+        const maxBytes = site.maxBytes ?? DEFAULT_REPLICA_LIMITS.maxBytes;
+        const maxBlocks = site.maxBlocks ?? DEFAULT_REPLICA_LIMITS.maxBlocks;
         if (
           typeof site.name !== "string" ||
           typeof site.cid !== "string" ||
           typeof sequence !== "number" ||
           !Number.isSafeInteger(sequence) ||
           typeof site.validity !== "string" ||
-          !Array.isArray(site.versions)
+          !Array.isArray(site.versions) ||
+          !isPositiveInteger(maxBytes) ||
+          !isPositiveInteger(maxBlocks)
         ) {
           throw new Error("invalid site entry");
         }
@@ -96,6 +114,8 @@ export class ReplicaStateStore {
           sequence,
           validity: site.validity,
           versions: site.versions.map((cid: unknown) => parseContentCid(String(cid))),
+          maxBytes,
+          maxBlocks,
         };
       });
     } catch (error) {
@@ -108,4 +128,8 @@ export class ReplicaStateStore {
     const text = JSON.stringify({ format: REPLICA_STATE_FORMAT, sites: sorted }, null, 2);
     await writePrivateFile(this.path, `${text}\n`);
   }
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
