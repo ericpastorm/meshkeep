@@ -55,10 +55,11 @@ async function findRecord(
   kubo: KuboClient,
   name: string,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<{ record: Uint8Array; entry: IpnsRecordEntry } | undefined> {
   let record: Uint8Array;
   try {
-    record = await kubo.getRecord(name, { timeoutMs });
+    record = await kubo.getRecord(name, { timeoutMs, ...(signal === undefined ? {} : { signal }) });
   } catch (error) {
     if (error instanceof KuboError) {
       return undefined;
@@ -178,6 +179,8 @@ export interface ReplicateOptions {
   readonly limits?: Partial<ReplicaLimits>;
   /** Overrides, then remembers, how many versions to keep (0 = all). */
   readonly keep?: number;
+  /** Cancels the record lookup and the fetch, for a daemon that is shutting down. */
+  readonly signal?: AbortSignal;
 }
 
 class LimitExceeded extends CliError {}
@@ -218,7 +221,14 @@ async function replicateLocked(
   name: string,
   options: ReplicateOptions,
 ): Promise<ReplicateResult> {
-  const found = await findRecord(kubo, name, options.recordTimeoutMs ?? DEFAULT_RECORD_TIMEOUT_MS);
+  const signal = options.signal;
+  const withSignal = signal === undefined ? {} : { signal };
+  const found = await findRecord(
+    kubo,
+    name,
+    options.recordTimeoutMs ?? DEFAULT_RECORD_TIMEOUT_MS,
+    signal,
+  );
   if (found === undefined) {
     throw new CliError(`no valid record found for ${name}`);
   }
@@ -250,7 +260,7 @@ async function replicateLocked(
   // 1. Cheap early filter: the root's own claim about the DAG size. Only the root is fetched.
   let declared: number;
   try {
-    declared = await kubo.declaredSize(cid, { timeoutMs: fetchTimeoutMs });
+    declared = await kubo.declaredSize(cid, { timeoutMs: fetchTimeoutMs, ...withSignal });
   } catch (error) {
     throw fetchFailure(error, name, cid, fetchTimeoutMs);
   }
@@ -265,6 +275,7 @@ async function replicateLocked(
     try {
       await kubo.pinRecursive(cid, {
         timeoutMs: fetchTimeoutMs,
+        ...withSignal,
         onProgress: ({ blocks, bytes }) => {
           if (blocks > limits.maxBlocks || bytes > limits.maxBytes) {
             throw overLimit(`reached ${bytes} bytes / ${blocks} blocks while fetching`);

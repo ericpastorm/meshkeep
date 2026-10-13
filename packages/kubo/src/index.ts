@@ -277,20 +277,26 @@ export class KuboClient {
   /**
    * Fetches and recursively pins a DAG. `onProgress` sees running totals while Kubo fetches; if
    * it throws, the request is aborted (which cancels the fetch) and its error is rethrown.
-   * Blocks fetched before an abort stay in the blockstore unpinned.
+   * Blocks fetched before an abort stay in the blockstore unpinned. `signal` cancels it too.
    */
   async pinRecursive(
     cid: string,
-    options: { timeoutMs?: number; onProgress?: (progress: PinProgress) => void } = {},
+    options: {
+      timeoutMs?: number;
+      signal?: AbortSignal;
+      onProgress?: (progress: PinProgress) => void;
+    } = {},
   ): Promise<void> {
     const abort = new AbortController();
+    const signal =
+      options.signal === undefined ? abort.signal : AbortSignal.any([abort.signal, options.signal]);
     let pinned = false;
     try {
       for await (const line of this.stream(
         "pin/add",
         { arg: cid, recursive: true, progress: true },
         {
-          signal: abort.signal,
+          signal,
           ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         },
       )) {
@@ -330,7 +336,10 @@ export class KuboClient {
    * Returns the cumulative size the root block declares for its DAG. Only the root is fetched,
    * and the value is the publisher's claim, so treat it as an early filter, never as proof.
    */
-  async declaredSize(cid: string, options: { timeoutMs?: number } = {}): Promise<number> {
+  async declaredSize(
+    cid: string,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<number> {
     const body = (await this.json("files/stat", { arg: `/ipfs/${cid}` }, options)) as {
       CumulativeSize?: unknown;
     };
@@ -391,7 +400,10 @@ export class KuboClient {
   }
 
   /** Fetches the best signed IPNS record Kubo can find for a name. */
-  async getRecord(name: string, options: { timeoutMs?: number } = {}): Promise<Uint8Array> {
+  async getRecord(
+    name: string,
+    options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  ): Promise<Uint8Array> {
     return this.bytes("name/get", { arg: name }, options);
   }
 

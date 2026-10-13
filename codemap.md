@@ -5,7 +5,7 @@
 - `packages/cli/src/bin.ts` → `runCli()` in `packages/cli/src/index.ts`: the `meshkeep` executable and every command.
 - `packages/protocol/src/index.ts`: the public protocol API, re-exported from one module per concern.
 - `packages/kubo/src/index.ts`: `KuboClient` and `parseApiUrl`.
-- `tests/integration/lifecycle.test.ts`: the end-to-end scenario, and `limits.test.ts`: replica limits and an interrupted fetch. Both run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner).
+- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
 
 ## Modules
 
@@ -24,7 +24,8 @@ packages/kubo/src/index.ts
                     name publish/resolve/get/put/inspect, keys, swarm; timeouts → KuboError
 
 packages/cli/src/
-  index.ts          commander wiring, --json output, error → exit code 1
+  index.ts          commander wiring, --json output, error → exit code 1, replica run
+  daemon.ts         runReplicaDaemon: per-site schedule, backoff, JSON-line events
   workflows.ts      publishSite, replicateSite (limits, retention), unreplicateSite,
                     verifyComplete, requireImportProfile
   keystore.ts       key files (create, load+verify, import, export)
@@ -37,7 +38,7 @@ packages/cli/src/
 ## Operations
 
 - `docs/operators.md`: how to run publishers and replicas.
-- `examples/systemd/`: user units that run `meshkeep sync` every 6 hours.
+- `examples/systemd/`: user units for the replica daemon (`meshkeep-replica.service`), or a timer that runs `meshkeep sync` every 6 hours.
 
 ## Dependency Direction
 

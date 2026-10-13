@@ -1,0 +1,24 @@
+# Runs the Meshkeep replica daemon: keeps every replicated site current, retries failures with
+# backoff, and logs one JSON object per line. Use it instead of meshkeep-sync.timer, not both.
+# Install as a user unit:
+#   cp meshkeep-replica.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now meshkeep-replica.service
+#   journalctl --user -u meshkeep-replica.service -o cat     # logs (pipe to jq to filter)
+[Unit]
+Description=Meshkeep replica daemon
+Documentation=https://github.com/ericpastorm/meshkeep/blob/main/docs/operators.md
+
+[Service]
+Type=simple
+# The meshkeep launcher runs `node` from PATH. If Node.js is not in /usr/bin or
+# /usr/local/bin (for example, it was installed with a version manager), uncomment
+# the next line and set the directory that contains `node`.
+#Environment=PATH=/path/to/node/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/.local/bin/meshkeep replica run
+# SIGTERM stops it cleanly: an in-flight fetch is aborted and nothing half-done is recorded.
+Restart=on-failure
+RestartSec=30s
+Nice=10
+
+[Install]
+WantedBy=default.target

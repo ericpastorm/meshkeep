@@ -11,12 +11,14 @@ import {
   parseContentCid,
   parseIpnsName,
   parsePetname,
+  RECOMMENDED_REPUBLISH_INTERVAL_HOURS,
   removeEntry,
   setEntry,
   VERSION,
 } from "@meshkeep/protocol";
 import { Command, CommanderError, InvalidArgumentError, Option } from "commander";
 
+import { DEFAULT_DAEMON_INTERVAL_MS, runReplicaDaemon } from "./daemon.js";
 import { CliError } from "./errors.js";
 import { readLimitedFile } from "./files.js";
 import { Keystore } from "./keystore.js";
@@ -45,6 +47,8 @@ export interface CliOptions {
   /** Receives diagnostics and errors. */
   stderr?: (text: string) => void;
   setExitCode?: (exitCode: number) => void;
+  /** Stops `replica run`. Without it, SIGINT and SIGTERM stop the daemon. */
+  signal?: AbortSignal;
 }
 
 interface GlobalOptions {
@@ -83,6 +87,15 @@ function fetchTimeoutOption() {
   return new Option("--fetch-timeout <seconds>", "give up fetching a version after this long")
     .argParser(seconds)
     .default(DEFAULT_FETCH_TIMEOUT_MS, String(DEFAULT_FETCH_TIMEOUT_MS / 1000));
+}
+
+/** An abort signal that fires on the first SIGINT or SIGTERM. */
+function processStopSignal(): AbortSignal {
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
+  return controller.signal;
 }
 
 export function createProgram(options: CliOptions = {}): Command {
@@ -406,6 +419,52 @@ export function createProgram(options: CliOptions = {}): Command {
         if (failed > 0) {
           setExitCode(1);
         }
+      }),
+    );
+
+  const replicaCommand = program
+    .command("replica")
+    .description("run this node as a long-lived replica");
+
+  replicaCommand
+    .command("run")
+    .description(
+      "keep every replicated site current until stopped: replicate each one every interval, " +
+        "retry failures with backoff, and log one JSON object per line to stderr",
+    )
+    .addOption(
+      new Option("--interval <seconds>", "how often to re-check and re-put each site")
+        .argParser(seconds)
+        .default(DEFAULT_DAEMON_INTERVAL_MS, String(DEFAULT_DAEMON_INTERVAL_MS / 1000)),
+    )
+    .addOption(fetchTimeoutOption())
+    .action(
+      action(async (opts: { interval: number; fetchTimeout: number }) => {
+        const signal = options.signal ?? processStopSignal();
+        const client = kubo();
+        const log = (event: object) =>
+          stderr(`${JSON.stringify({ time: new Date().toISOString(), ...event })}\n`);
+        const recommendedMs = RECOMMENDED_REPUBLISH_INTERVAL_HOURS * 60 * 60_000;
+        if (opts.interval > recommendedMs) {
+          log({
+            level: "warn",
+            event: "interval-too-long",
+            intervalSeconds: opts.interval / 1000,
+            recommendedSeconds: recommendedMs / 1000,
+            reason: "DHT nodes forget records after about 48 hours",
+          });
+        }
+        await runReplicaDaemon({
+          intervalMs: opts.interval,
+          signal,
+          listSites: async () => (await replicas.load()).map((site) => site.name),
+          replicate: (name, stop) =>
+            replicateSite(client, replicas, name, {
+              fetchTimeoutMs: opts.fetchTimeout,
+              signal: stop,
+            }),
+          log,
+        });
       }),
     );
 

@@ -134,11 +134,29 @@ meshkeep replicate their-blog --max-size 512MiB --max-blocks 50000
 
 Limits are remembered and applied by `sync`. A version over the limit is refused and left unpinned. Fetches give up after `--fetch-timeout` seconds (default 1800). An interrupted fetch records nothing, and the next run resumes from the blocks already downloaded.
 
-### Schedule `sync`
+### Keep Sites Current
 
-DHT nodes forget records after about 48 hours. Run `meshkeep sync` at least every 12 hours: it re-checks every replicated site, fetches new versions, and re-puts records.
+DHT nodes forget records after about 48 hours, so every replicated site has to be re-checked and its record re-put at least every 12 hours. Choose **one** of these.
 
-With systemd, copy the units from [`examples/systemd/`](../examples/systemd/):
+**The replica daemon (recommended).** `meshkeep replica run` stays running and handles every site on its own. Each site is re-checked every `--interval` seconds (default 21600, i.e. 6 hours). A failing site is retried after 1, 2, 4… minutes, up to the interval, without delaying the others. Sites you add with `replicate` or remove with `unreplicate` are picked up on the next cycle, and manual commands can run at the same time. SIGTERM or Ctrl-C stops it cleanly. As a systemd user service:
+
+```sh
+cp examples/systemd/meshkeep-replica.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now meshkeep-replica.service
+journalctl --user -u meshkeep-replica.service -o cat      # logs
+```
+
+It logs one JSON object per line to stderr, for example:
+
+```json
+{"time":"2026-10-14T06:00:00.000Z","level":"info","event":"updated","name":"k51…","cid":"bafy…","sequence":3,"versions":2,"pruned":[],"nextRunSeconds":21600}
+{"time":"2026-10-14T06:00:05.000Z","level":"warn","event":"failed","name":"k51…","error":"no valid record found for k51…","failures":1,"retryInSeconds":60}
+```
+
+Events: `started`, `current` (nothing new), `updated` (new version replicated), `failed` (will retry), `state-unreadable`, `interval-too-long` (warning when `--interval` exceeds 12 hours), and `stopped`. Filter with `jq`, for example `journalctl --user -u meshkeep-replica -o cat | jq 'select(.level != "info")'`. Unexpected internal errors exit the process, and the unit's `Restart=on-failure` brings it back.
+
+**A timer or cron job running `meshkeep sync`.** Use this if you prefer not to keep a process running. With systemd, copy the timer units from [`examples/systemd/`](../examples/systemd/):
 
 ```sh
 cp examples/systemd/meshkeep-sync.service examples/systemd/meshkeep-sync.timer ~/.config/systemd/user/
@@ -148,7 +166,7 @@ systemctl --user list-timers meshkeep-sync.timer   # next run
 journalctl --user -u meshkeep-sync.service         # past runs
 ```
 
-The timer runs every 6 hours. If `node` is not in `/usr/bin` or `/usr/local/bin`, uncomment the `Environment=PATH=…` line in the service. To keep timers running while you are logged out, run `loginctl enable-linger "$USER"`.
+The timer runs every 6 hours.
 
 With cron:
 
@@ -161,6 +179,8 @@ PATH=/usr/local/bin:/usr/bin:/bin
 Create the log directory first with `mkdir -p ~/.local/state`.
 
 `sync` exits 1 if any site failed and prints one line per site. Add `--json` for machine-readable output.
+
+In both cases, if `node` is not in `/usr/bin` or `/usr/local/bin`, uncomment the `Environment=PATH=…` line in the service. To keep user services running while you are logged out, run `loginctl enable-linger "$USER"`.
 
 ### Disk Space
 

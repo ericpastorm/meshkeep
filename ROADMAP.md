@@ -18,12 +18,13 @@ Static websites that anyone can publish for free under a key-based address, that
 
 ## v0.2 Replica Daemon
 
-- [ ] `meshkeep replica run`: periodic sync and record re-put with backoff, limits, and structured local logs.
+- [x] `meshkeep replica run`: periodic replication and record re-put per site, exponential backoff for failing sites, stored limits and retention, JSON-line logs, clean stop on SIGTERM/SIGINT.
 - [x] Retention policy (`replicate --keep N`, remembered for `sync`) and safe pruning: only pins the replica created, never a version another site uses, never the current version.
 - [x] `meshkeep unreplicate`: stop following a site and release the pins it created (`--keep-pins` to leave them).
 - [x] Locking of the replica state, so a daemon and manual commands never overwrite each other.
 - [ ] Follow a published address book: replicate every site a trusted curator lists, with explicit opt-in.
-- [ ] Container image and systemd unit for volunteers running replicas.
+- [x] systemd user unit for the replica daemon (`examples/systemd/meshkeep-replica.service`).
+- [ ] Container image for volunteers running replicas.
 
 ## v0.3 Browser Extension
 
@@ -63,3 +64,4 @@ These items need an ADR before any work starts:
 - 2026-10-13: Bounded replication. `pnpm check` passed with 122 unit tests. `pnpm test:integration` passed 12/12 in three consecutive local runs (Docker 29.7.2, Kubo 0.42.0), with no leftover containers or networks. The new suite covers refusal by declared size, refusal by block count during the fetch with the pin removed, and a fetch interrupted by publisher shutdown that records nothing and later resumes to a complete replica.
 - 2026-10-13: Operator guide. Its claims were checked on Kubo 0.42.0: a fresh `ipfs init` binds RPC and gateway to loopback; with the daemon running, Kubo's republisher re-signed the record (debug log: `republishing ipns entry`) and kept the one-year expiry rather than shortening it to 48 hours; both `<address>.ipns.localhost` and `/ipns/<address>` gateway forms serve the site; the systemd units pass `systemd-analyze --user verify`; the symlinked launcher runs. A new integration test confirms that republishing an unchanged directory renews the record (higher sequence, same CID). `pnpm check` passed with 122 tests, and `pnpm test:integration` passed 13/13 twice.
 - 2026-10-14: Retention and `unreplicate`. The replica now records the pins it creates and never unpins anything else. `pnpm check` passed with 147 unit tests, covering ownership, `--keep`, shared versions across sites, rollback to an older CID, failed unpins and re-puts, legacy state, and the PID lock. `pnpm test:integration` passed 15/15; on real Kubo, `--keep 1` unpinned v1 and kept v2, and `unreplicate` released both versions and left no pins.
+- 2026-10-14: Replica daemon. `pnpm check` passed with 157 unit tests; the daemon's schedule and backoff are checked on a fake clock. A new integration test on real Kubo saw the daemon notice a v2 publication by itself and replicate it, run alongside a manual `replicate --keep 1` through the state lock, and stop cleanly with no lock left. The built binary stopped with exit 0 on both SIGTERM and SIGINT. The unit passes `systemd-analyze --user verify`.

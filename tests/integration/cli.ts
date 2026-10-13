@@ -24,17 +24,55 @@ export interface CliResult {
 export function cliRunner(cluster: KuboCluster, scratch: () => string) {
   const homes = new Map<string, string>();
 
-  async function cli(role: string, ...args: string[]): Promise<CliResult> {
-    let home = homes.get(role);
-    if (home === undefined) {
-      home = await mkdtemp(join(scratch(), `${role}-`));
-      homes.set(role, home);
+  async function home(role: string): Promise<string> {
+    let path = homes.get(role);
+    if (path === undefined) {
+      path = await mkdtemp(join(scratch(), `${role}-`));
+      homes.set(role, path);
     }
+    return path;
+  }
+
+  /** Starts a command without waiting for it; `stop` aborts it and waits for it to finish. */
+  async function start(role: string, ...args: string[]) {
+    const controller = new AbortController();
+    let stdout = "";
+    let stderr = "";
+    let exitCode = 0;
+    const done = runCli(["node", "meshkeep", "--json", ...args], {
+      env: { MESHKEEP_HOME: await home(role), MESHKEEP_API: cluster.node(role).apiUrl },
+      signal: controller.signal,
+      stdout: (text: string) => {
+        stdout += text;
+      },
+      stderr: (text: string) => {
+        stderr += text;
+      },
+      setExitCode: (code: number) => {
+        exitCode = code;
+      },
+    });
+    return {
+      /** Diagnostics written so far, one JSON object per line for `replica run`. */
+      events: () =>
+        stderr
+          .split("\n")
+          .filter((line) => line.startsWith("{"))
+          .map((line) => JSON.parse(line) as Record<string, unknown>),
+      stop: async (): Promise<CliResult> => {
+        controller.abort();
+        await done;
+        return { exitCode, stdout, stderr };
+      },
+    };
+  }
+
+  async function cli(role: string, ...args: string[]): Promise<CliResult> {
     let stdout = "";
     let stderr = "";
     let exitCode = 0;
     await runCli(["node", "meshkeep", "--json", ...args], {
-      env: { MESHKEEP_HOME: home, MESHKEEP_API: cluster.node(role).apiUrl },
+      env: { MESHKEEP_HOME: await home(role), MESHKEEP_API: cluster.node(role).apiUrl },
       stdout: (text: string) => {
         stdout += text;
       },
@@ -57,5 +95,22 @@ export function cliRunner(cluster: KuboCluster, scratch: () => string) {
     return JSON.parse(result.stdout) as Record<string, unknown>;
   }
 
-  return { cli, meshkeep };
+  return { cli, meshkeep, start, home };
+}
+
+/** Polls until `check` returns a value, or fails after `timeoutMs`. */
+export async function waitFor<T>(
+  description: string,
+  check: () => T | undefined,
+  timeoutMs = 60_000,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = check();
+    if (value !== undefined) {
+      return value;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`timed out waiting for ${description}`);
 }
