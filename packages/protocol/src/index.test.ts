@@ -19,6 +19,7 @@ import {
   parsePetname,
   removeEntry,
   setEntry,
+  VERSION,
 } from "./index.js";
 
 const fixtures = new URL("../../../spec/fixtures/", import.meta.url);
@@ -44,6 +45,22 @@ function expectProtocolError(action: () => unknown, code: ProtocolErrorCode) {
   }
   expect.fail(`expected ProtocolError ${code}`);
 }
+
+describe("version", () => {
+  it("matches every package manifest, which releases are tagged from", () => {
+    for (const manifest of [
+      "../../../package.json",
+      "../package.json",
+      "../../cli/package.json",
+      "../../kubo/package.json",
+    ]) {
+      const { version } = JSON.parse(readFileSync(new URL(manifest, import.meta.url), "utf8")) as {
+        version: string;
+      };
+      expect(version, manifest).toBe(VERSION);
+    }
+  });
+});
 
 describe("keys", () => {
   it("encodes the Kubo-compatible private key and derives Kubo's IPNS name", () => {
