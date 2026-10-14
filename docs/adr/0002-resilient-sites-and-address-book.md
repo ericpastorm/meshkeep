@@ -1,6 +1,6 @@
 # ADR 0002: Resilient Sites, Key-Based Addresses, And Address Books
 
-- Status: Accepted
+- Status: Accepted; section 7 amended by [ADR 0004](0004-browser-extension.md)
 - Date: 2026-10-09
 - Supersedes: [ADR 0001](0001-mvp-scope.md)
 
@@ -48,6 +48,8 @@ Trade-off: a long lifetime means a peer that isolates a visitor can keep serving
 A replica reports a version only after Kubo can walk the whole DAG offline (`dag/stat` with `offline=true`). It keeps every version it has replicated pinned. Retention and pruning policy belongs to the replica daemon phase.
 
 ### 7. Browser access through an extension
+
+> Amended by [ADR 0004](0004-browser-extension.md): measurements showed that an extension cannot serve sites itself with per-site isolation, so it opens them on the local Kubo subdomain gateway instead. Embedded retrieval moved to research.
 
 The planned extension holds the user's address book and resolves petnames to addresses. It fetches content with an embedded verified-retrieval client (Helia / `@helia/verified-fetch`), which checks every block against its CID. No trusted gateway is involved. Replica-local Kubo gateways remain a valid access path. The protocol package stays free of Node-only APIs so that the extension can reuse it.
 

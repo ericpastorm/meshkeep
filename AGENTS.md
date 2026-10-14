@@ -13,6 +13,7 @@ Be honest about limits: Meshkeep is not anonymous, does not guarantee permanence
 - `packages/protocol/`: addresses, key encoding, petnames, the address book, and policy constants. Pure TypeScript with no Node-only APIs, because the browser extension will reuse it. No Kubo or CLI code.
 - `packages/kubo/`: the narrow Kubo RPC client. No business rules.
 - `packages/cli/`: commands, local state (keystore, address book, replica state), and the publish and replicate workflows. Do not duplicate protocol rules here.
+- `packages/extension/`: the browser extension (ADR 0004). It opens sites on the local gateway and never fetches or renders site content itself. Keep `chrome.*` calls in `background.ts` and the pages, and logic in modules the unit tests can reach.
 - `spec/`: normative rules, the JSON schema, and fixtures. Fixtures are the interoperability contract.
 - `tests/integration/`: Docker-based private Kubo network and lifecycle tests.
 - `docs/`: architecture, threat model, privacy, ADRs.
@@ -25,10 +26,11 @@ Read [codemap.md](codemap.md) for the data flow before larger changes.
 pnpm install
 pnpm check              # biome, typecheck, unit tests, build, CLI smoke
 pnpm test:integration   # needs Docker; Kubo 0.42.0 pinned by digest
+pnpm exec playwright install chromium   # once, for the extension suite
 pnpm format             # rewrites files; review the diff
 ```
 
-Run `pnpm check` before calling a change done. Run `pnpm test:integration` when you touch `packages/kubo`, the workflows, or anything Kubo-facing. If Docker is unavailable, say so rather than claiming it passed.
+Run `pnpm check` before calling a change done. Run `pnpm test:integration` when you touch `packages/kubo`, the workflows, the extension, or anything Kubo-facing. If Docker is unavailable, say so rather than claiming it passed.
 
 ## Rules
 

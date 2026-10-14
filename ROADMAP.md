@@ -29,10 +29,13 @@ Static websites that anyone can publish for free under a key-based address, that
 
 ## v0.3 Browser Extension
 
-- [ ] Address book UI (the "contact list"): add, rename, import, export, and subscribe to published books.
-- [ ] Open `petname` or `k51…` addresses with an embedded verified-retrieval client (Helia / `@helia/verified-fetch`). No trusted gateway.
-- [ ] Isolation review: site content never gets extension privileges or access to local services.
-- [ ] Use a local Kubo gateway when one is available.
+[ADR 0004](docs/adr/0004-browser-extension.md): the extension is the address book and opens sites on the local Kubo subdomain gateway, so each site gets its own origin.
+
+- [x] Address book page (the "contact list"): add, rename, remove, import, and export, in the same format as `meshkeep book`.
+- [x] Open a petname or a `k51…` address, with an optional path, from the address bar (`mk`) or the popup, on `http://<address>.ipns.localhost:<port>/`. Local gateway port setting with a reachability check. No remote gateway.
+- [ ] Subscribe to published address books (ADR 0003) and open the sites they list.
+- [ ] Isolation review: site content never gets extension privileges or access to local services, tested in the browser; remove cookies one site sets for all sites (`Domain=ipns.localhost`).
+- [ ] Packaged releases (a zip from CI) and a Firefox build.
 
 ## v0.4 Publishing Ergonomics
 
@@ -44,6 +47,7 @@ Static websites that anyone can publish for free under a key-based address, that
 These items need an ADR before any work starts:
 
 - Anonymous transports (Tor or I2P) for replicas and visitors.
+- Verified retrieval inside the browser, without a local node. It needs a way for an extension to give generated content its own origin (ADR 0004).
 - Key rotation and recovery for addresses.
 - A DNSLink bridge for owners of existing domains.
 - Replica discovery and mutual-replication circles, without tokens.
@@ -69,3 +73,4 @@ These items need an ADR before any work starts:
 - 2026-10-14: Container image. `pnpm check` now also bundles the CLI and runs the bundle. A new integration suite builds the image from the checkout and runs it in a Kubo node's network namespace (non-root, read-only, no capabilities): `doctor` passed, `docker exec … replicate` worked, the daemon replicated a new version by itself, and `docker stop` exited 0. With the compose file's own `kubo-init.sh`, on an internal Docker network, the sidecar reached the RPC while another container on the same network got "connection refused"; the gateway answered. `docker compose config` validates the compose file.
 - 2026-10-14: Published address books (ADR 0003, spec section 5). `pnpm check` passed with 176 unit tests, covering book reading limits, `--max-sites`, follow limits versus the operator's own, drops versus sites kept as manual or listed by another book, a failed refresh keeping the last list, `unreplicate` refusal, `unfollow` with and without pins, legacy state, and the daemon refreshing books before sites with its own backoff. A new integration suite on real Kubo: a curator ran `book publish`, a replica followed it and replicated both listed sites, the curator swapped one site, and `sync` dropped the removed site (its pin released) and replicated the new one; `unfollow` released everything only the book wanted.
 - 2026-10-14: Release 0.2.0. Tag `v0.2.0` on `main` (`389e07e`, CI green, and locally `pnpm check` with 177 unit tests and `pnpm test:integration` 24/24) published `ghcr.io/ericpastorm/meshkeep` as `0.2.0`, `0.2`, and `latest` (index `sha256:47d33b58…`). Pulled anonymously, both `linux/amd64` and `linux/arm64` ran and reported 0.2.0 as the `node` user. `gh attestation verify` accepted the SLSA provenance for `refs/tags/v0.2.0` signed by `image.yml` and refused another source ref. The compose file with the published image, on an internal Docker network: `doctor` passed against Kubo 0.42.0, the daemon started, another container got "connection refused" from the RPC while the gateway answered, and `docker compose stop` exited 0. The workflow's tag check accepted `v0.2.0` against `package.json`.
+- 2026-10-14: Browser extension, first part ([ADR 0004](docs/adr/0004-browser-extension.md)). A spike in Chromium 156 (Playwright) showed that a Manifest V3 extension cannot serve a site itself: as an extension page the site gets `chrome.runtime` and `chrome.storage`, and in an opaque sandbox its CSS, images, and scripts never reach the service worker. On a Kubo 0.42.0 subdomain gateway, each site had its own origin with no extension access. Its `localStorage` was separate, and a `no-cors` POST to the RPC's `key/gen` got 403 and created no key. One gap was measured: a cookie set for `ipns.localhost` reached another site. The extension (`packages/extension`) opens sites that way. `pnpm check` passed with 204 unit tests, and `pnpm test:integration` passed 29/29. The new suite loads the built extension into Playwright's Chromium next to a Kubo container. It checks the gateway on an unused port and on the real one. It adds a petname and opens it from the popup on `http://<address>.ipns.localhost:<port>/`, where the fixture page loads on its own origin without `chrome.runtime`. It also covers the message for an unknown petname, opening in a new tab, rename, export (byte-identical to the canonical encoding), remove, import, a refused conflict, and an explicit replace.

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meshkeep address book</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="book.js"></script>
+  </head>
+  <body class="page">
+    <header>
+      <h1>Meshkeep address book</h1>
+      <p>Your petnames for site addresses. They stay in this browser. Type <kbd>mk</kbd>, a space, and a petname in the address bar to open a site.</p>
+    </header>
+    <p id="notice" class="status" role="status" aria-live="polite" hidden></p>
+
+    <section aria-labelledby="add-title">
+      <h2 id="add-title">Add a site</h2>
+      <form id="add-form" class="row" autocomplete="off">
+        <label>Petname <input name="petname" required spellcheck="false" placeholder="their-blog" /></label>
+        <label class="grow">Address <input name="name" required spellcheck="false" placeholder="k51…" /></label>
+        <label class="grow">Note <input name="note" maxlength="280" placeholder="optional" /></label>
+        <button type="submit">Add</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="entries-title">
+      <h2 id="entries-title">Sites</h2>
+      <p id="empty">Your address book is empty.</p>
+      <table id="entries" hidden>
+        <thead>
+          <tr><th scope="col">Petname</th><th scope="col">Address</th><th scope="col">Note</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="share-title">
+      <h2 id="share-title">Import and export</h2>
+      <p>Files use the same format as <code>meshkeep book export</code> and <code>meshkeep book import</code>.</p>
+      <form id="import-form" class="row">
+        <input name="file" type="file" accept=".json,application/json" required aria-label="Address book file" />
+        <label class="inline"><input name="replace" type="checkbox" /> Replace petnames that already exist</label>
+        <button type="submit">Import</button>
+      </form>
+      <p><button id="export" type="button">Export</button></p>
+    </section>
+
+    <section aria-labelledby="gateway-title">
+      <h2 id="gateway-title">Local gateway</h2>
+      <p>Sites open on the IPFS gateway on this computer, for example Kubo or the <a href="https://github.com/ericpastorm/meshkeep/blob/main/docs/operators.md#run-a-replica-with-docker" target="_blank" rel="noreferrer">Meshkeep Docker replica</a>, at <code>http://&lt;address&gt;.ipns.localhost:&lt;port&gt;/</code>. Each site gets its own browser origin.</p>
+      <form id="gateway-form" class="row">
+        <label>Port <input name="port" type="number" min="1" max="65535" required /></label>
+        <button type="submit">Save</button>
+      </form>
+      <p id="gateway-status" class="status" role="status"></p>
+    </section>
+  </body>
+</html>

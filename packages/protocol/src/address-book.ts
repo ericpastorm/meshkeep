@@ -161,3 +161,60 @@ export function removeEntry(book: AddressBook, petname: string): AddressBook {
   }
   return createAddressBook(book.entries.filter((entry) => entry.petname !== petname));
 }
+
+/** Gives an entry a new petname, keeping its address and note. */
+export function renameEntry(book: AddressBook, from: string, to: string): AddressBook {
+  const entry = findEntry(book, from);
+  if (entry === undefined) {
+    throw new ProtocolError("unknown-petname", `unknown petname: ${from}`);
+  }
+  if (to !== from && findEntry(book, to) !== undefined) {
+    throw new ProtocolError("duplicate-petname", `petname already exists: ${to}`);
+  }
+  return createAddressBook([
+    ...book.entries.filter((candidate) => candidate.petname !== from),
+    { ...entry, petname: to },
+  ]);
+}
+
+export interface AddressBookMerge {
+  readonly book: AddressBook;
+  /** Petnames that were new, that replaced a different entry, and that were already identical. */
+  readonly added: readonly string[];
+  readonly replaced: readonly string[];
+  readonly unchanged: readonly string[];
+}
+
+/**
+ * Merges `incoming` into `book` as one change. An entry identical to an existing one changes
+ * nothing. A petname that already names a different entry fails the whole merge, unless
+ * `replace` is set.
+ */
+export function mergeAddressBook(
+  book: AddressBook,
+  incoming: AddressBook,
+  options: { replace?: boolean } = {},
+): AddressBookMerge {
+  const entries = new Map(book.entries.map((entry) => [entry.petname, entry]));
+  const added: string[] = [];
+  const replaced: string[] = [];
+  const unchanged: string[] = [];
+  for (const entry of createAddressBook(incoming.entries).entries) {
+    const existing = entries.get(entry.petname);
+    if (existing === undefined) {
+      added.push(entry.petname);
+    } else if (existing.name === entry.name && existing.note === entry.note) {
+      unchanged.push(entry.petname);
+      continue;
+    } else if (options.replace === true) {
+      replaced.push(entry.petname);
+    } else {
+      throw new ProtocolError(
+        "duplicate-petname",
+        `petname already exists with a different address or note: ${entry.petname}`,
+      );
+    }
+    entries.set(entry.petname, entry);
+  }
+  return { book: createAddressBook([...entries.values()]), added, replaced, unchanged };
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Meshkeep</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body class="popup">
+    <form id="open-form" autocomplete="off">
+      <label for="target">Open a site</label>
+      <input id="target" type="text" placeholder="petname or k51… address" spellcheck="false" autofocus />
+    </form>
+    <p id="message" class="status" role="status" hidden></p>
+    <ul id="matches" class="matches" aria-label="Matching sites"></ul>
+    <footer>
+      <span id="gateway" class="gateway">Checking the local gateway…</span>
+      <a href="book.html" target="_blank">Address book</a>
+    </footer>
+  </body>
+</html>

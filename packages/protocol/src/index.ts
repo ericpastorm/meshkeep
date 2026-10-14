@@ -1,4 +1,4 @@
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0-dev";
 
 export * from "./address-book.js";
 export * from "./errors.js";

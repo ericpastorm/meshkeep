@@ -4,14 +4,14 @@
 
 Aloja webs estáticas en una red peer-to-peer: direcciones gratuitas, sin servidores que alquilar y sin un punto único que alguien pueda apagar.
 
-> **Estado: desarrollo temprano (v0.1).** La publicación, la replicación y las agendas funcionan de principio a fin y están probadas contra nodos Kubo reales. Las interfaces y los formatos aún pueden cambiar. Usa solo claves desechables y contenido público.
+> **Estado: desarrollo temprano (v0.2).** La publicación, la replicación, el daemon de réplica y las agendas funcionan de principio a fin y están probados contra nodos Kubo reales. La extensión de navegador es una versión preliminar. Las interfaces y los formatos aún pueden cambiar. Usa solo claves desechables y contenido público.
 
 ## La Idea
 
 - **Tu dirección es una clave.** `meshkeep key create blog` te da una dirección como `k51qzi5uqu5d…`. Nadie te la vende, nadie te la puede quitar y no cuesta nada.
 - **Tu web se identifica por su contenido.** Cada versión es un directorio IPFS inmutable identificado por su hash. Quien tenga una copia puede servirla, y cada visitante puede comprobar que los bytes son correctos.
 - **Cualquiera puede mantenerla viva.** Las réplicas, que son máquinas de otras personas, guardan una copia completa y mantienen en circulación el registro firmado de tu dirección. Cuando las réplicas la tienen, la web sigue en pie aunque tu ordenador desaparezca, igual que un torrent sobrevive a quien lo empezó a compartir.
-- **La gente usa nombres, no hashes.** Cada persona tiene una agenda (`book add blog k51…`) que asocia sus propios apodos a direcciones. Las agendas se pueden compartir e importar. Está prevista una extensión de navegador que funcione como una lista de contactos.
+- **La gente usa nombres, no hashes.** Cada persona tiene una agenda (`book add blog k51…`) que asocia sus propios apodos a direcciones. Las agendas se pueden compartir e importar. Una extensión de navegador funciona como una lista de contactos: escribe `mk su-blog` en la barra de direcciones.
 
 No hay blockchain, ni tokens, ni registro central, ni servidor de Meshkeep. Por debajo, [Kubo](https://github.com/ipfs/kubo) (IPFS) se encarga del almacenamiento, la transferencia y los nombres firmados. Meshkeep aporta el flujo de trabajo, las reglas y la agenda.
 
@@ -64,6 +64,12 @@ meshkeep unfollow k51…curador            # deja de seguirla y libera las webs 
 
 Visita una web a través del gateway de cualquier nodo Kubo: `http://127.0.0.1:8080/ipns/k51…/`.
 
+### Extensión de navegador (preliminar)
+
+La extensión es tu agenda dentro del navegador. Escribe `mk`, un espacio y un apodo en la barra de direcciones, o usa su popup de la barra de herramientas. Las webs se abren en el gateway IPFS de tu propio ordenador (`http://<dirección>.ipns.localhost:8080/`), así que cada web tiene su propio origen en el navegador y Kubo comprueba cada bloque. Necesita un nodo Kubo local, por ejemplo la réplica de Docker de arriba. Importa y exporta los mismos ficheros que `meshkeep book` y nunca usa un gateway remoto. El [ADR 0004](docs/adr/0004-browser-extension.md) explica por qué funciona así.
+
+Hasta que se publique en una tienda, cárgala desempaquetada en Chrome, Brave o Edge: ejecuta `pnpm install && pnpm build`, abre `chrome://extensions`, activa el modo de desarrollador, elige **Cargar descomprimida** y selecciona `packages/extension/dist`.
+
 Mover la publicación a otra máquina:
 
 ```sh
@@ -97,6 +103,7 @@ La documentación técnica está en inglés: [arquitectura](docs/architecture.md
 packages/protocol   direcciones, claves, petnames, agenda (TS puro, apto para navegador)
 packages/kubo       cliente mínimo de la RPC de Kubo (solo loopback por defecto)
 packages/cli        el comando meshkeep
+packages/extension  extensión de navegador: agenda y apertura de webs mediante el gateway local
 spec/               reglas normativas, JSON Schema, fixtures de interoperabilidad
 tests/integration   red Kubo privada en Docker, test del ciclo de vida completo
 docs/               guía de operador, arquitectura, modelo de amenazas, privacidad, ADRs
@@ -112,11 +119,13 @@ pnpm check              # lint, typecheck, tests unitarios, build
 pnpm test:integration   # requiere Docker; arranca cinco contenedores Kubo en una red privada
 ```
 
-El test de integración publica la v1 y la replica en dos réplicas; después apaga el publicador. Mueve la clave a un segundo publicador, publica la v2 y sincroniza. Por último apaga todos los publicadores y comprueba que un visitante completamente nuevo sigue pudiendo resolver y cargar la web solo desde las réplicas. También comprueba que se rechazan los registros manipulados y los intentos de volver a una versión anterior. Otros conjuntos de tests cubren los límites de tamaño y de bloques de las réplicas con una descarga interrumpida que se retoma después, el daemon de réplica y la imagen de contenedor (construida desde el repositorio y ejecutada junto a Kubo igual que en el compose).
+Los tests de la extensión usan el Chromium de Playwright; instálalo una vez con `pnpm exec playwright install chromium`.
+
+El test de integración publica la v1 y la replica en dos réplicas; después apaga el publicador. Mueve la clave a un segundo publicador, publica la v2 y sincroniza. Por último apaga todos los publicadores y comprueba que un visitante completamente nuevo sigue pudiendo resolver y cargar la web solo desde las réplicas. También comprueba que se rechazan los registros manipulados y los intentos de volver a una versión anterior. Otros conjuntos de tests cubren los límites de tamaño y de bloques de las réplicas con una descarga interrumpida que se retoma después, el daemon de réplica, la imagen de contenedor (construida desde el repositorio y ejecutada junto a Kubo igual que en el compose) y la extensión de navegador contra un gateway Kubo real.
 
 ## Hoja De Ruta
 
-Lo siguiente: la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
+Lo siguiente: suscribirse a agendas publicadas desde la extensión y su revisión de aislamiento. Consulta [ROADMAP.md](ROADMAP.md).
 
 ## Contribuir Y Seguridad
 

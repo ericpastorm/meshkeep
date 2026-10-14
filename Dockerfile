@@ -14,6 +14,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json L
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/kubo/package.json packages/kubo/
 COPY packages/cli/package.json packages/cli/
+COPY packages/extension/package.json packages/extension/
 RUN COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile --ignore-scripts
 COPY scripts/bundle-cli.mjs scripts/
 COPY packages packages

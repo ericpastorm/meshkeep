@@ -4,14 +4,14 @@
 
 Host static websites on a peer-to-peer network: free addresses, no servers to rent, and no single point anyone can switch off.
 
-> **Status: early development (v0.1).** Publishing, replication, and address books work end to end and are tested against real Kubo nodes. Interfaces and formats may still change. Use disposable keys and public content only.
+> **Status: early development (v0.2).** Publishing, replication, the replica daemon, and address books work end to end and are tested against real Kubo nodes. The browser extension is a preview. Interfaces and formats may still change. Use disposable keys and public content only.
 
 ## The Idea
 
 - **Your address is a key.** `meshkeep key create blog` gives you an address like `k51qzi5uqu5d…`. Nobody sells it, nobody can take it from you, and it costs nothing.
 - **Your site is content-addressed.** Each version is an immutable IPFS directory identified by its hash. Whoever has a copy can serve it, and every visitor can check that the bytes are right.
 - **Anyone can keep it alive.** Replicas, which are other people's machines, keep a full copy and keep your signed address record circulating. Once replicas hold it, the site stays up even if your own computer is gone, the way a torrent outlives its first seeder.
-- **People use names, not hashes.** Everyone keeps an address book (`book add blog k51…`) that maps their own nicknames to addresses. Books can be shared and imported. A browser extension that works like a contact list is planned.
+- **People use names, not hashes.** Everyone keeps an address book (`book add blog k51…`) that maps their own nicknames to addresses. Books can be shared and imported. A browser extension works like a contact list: type `mk their-blog` in the address bar.
 
 There is no blockchain, no token, no central registry, and no Meshkeep server. Under the hood, [Kubo](https://github.com/ipfs/kubo) (IPFS) does the storage, transfer, and signed names. Meshkeep adds the workflow, the rules, and the address book.
 
@@ -64,6 +64,12 @@ meshkeep unfollow k51…curator            # stop, releasing the sites only that
 
 Visit a site through any Kubo node's gateway: `http://127.0.0.1:8080/ipns/k51…/`.
 
+### Browser Extension (Preview)
+
+The extension is your address book in the browser. Type `mk`, a space, and a petname in the address bar, or use its toolbar popup. Sites open on the IPFS gateway on your own computer (`http://<address>.ipns.localhost:8080/`), so each site gets its own browser origin and Kubo checks every block. It needs a local Kubo node, such as the Docker replica above. It imports and exports the same files as `meshkeep book`, and never uses a remote gateway. [ADR 0004](docs/adr/0004-browser-extension.md) explains why it works this way.
+
+Until it is published in a store, load it unpacked in Chrome, Brave, or Edge: run `pnpm install && pnpm build`, open `chrome://extensions`, turn on Developer mode, choose **Load unpacked**, and pick `packages/extension/dist`.
+
 Move publishing to another machine:
 
 ```sh
@@ -97,6 +103,7 @@ See [the architecture](docs/architecture.md), [the specification](spec/README.md
 packages/protocol   addresses, keys, petnames, address book (pure TS, browser-safe)
 packages/kubo       narrow Kubo RPC client (loopback-only by default)
 packages/cli        the meshkeep command
+packages/extension  browser extension: address book and opener over the local gateway
 spec/               normative rules, JSON schema, interoperability fixtures
 tests/integration   private Kubo network in Docker, full lifecycle test
 docs/               operator guide, architecture, threat model, privacy, ADRs
@@ -112,11 +119,13 @@ pnpm check              # lint, typecheck, unit tests, build
 pnpm test:integration   # needs Docker; starts five Kubo containers on a private network
 ```
 
-The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected. Further suites cover replica size and block limits with an interrupted fetch that resumes later, the replica daemon, and the container image (built from the checkout and run next to Kubo as compose runs it).
+The extension tests drive Playwright's Chromium; install it once with `pnpm exec playwright install chromium`.
+
+The integration test publishes v1 and replicates it to two replicas, then shuts the publisher down. It moves the key to a second publisher, publishes v2 and syncs. Finally it shuts every publisher down and checks that a brand-new visitor can still resolve and load the site from the replicas alone. It also checks that tampered and rolled-back records are rejected. Further suites cover replica size and block limits with an interrupted fetch that resumes later, the replica daemon, the container image (built from the checkout and run next to Kubo as compose runs it), and the browser extension against a real Kubo gateway.
 
 ## Roadmap
 
-Next up: the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
+Next up: subscribing to published address books from the extension, and its isolation review. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing And Security
 

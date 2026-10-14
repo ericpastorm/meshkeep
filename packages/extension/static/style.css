@@ -1,0 +1,247 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1d2125;
+  --muted: #5d656e;
+  --line: #d6dadf;
+  --accent: #1f6feb;
+  --ok: #1a7f37;
+  --error: #c4291c;
+  --field: #f6f8fa;
+  font:
+    14px / 1.45 system-ui,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16191d;
+    --fg: #e4e7eb;
+    --muted: #9aa3ad;
+    --line: #353b42;
+    --accent: #6ea8ff;
+    --ok: #57c26b;
+    --error: #ff7b6e;
+    --field: #1f2328;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+a {
+  color: var(--accent);
+}
+
+input,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="text"],
+input:not([type]),
+input[type="number"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+}
+
+button {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button.danger[data-armed="true"] {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+code,
+kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 0.92em;
+}
+
+.status {
+  margin: 8px 0;
+}
+
+.status[data-kind="ok"] {
+  color: var(--ok);
+}
+
+.status[data-kind="error"] {
+  color: var(--error);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Popup */
+
+.popup {
+  width: 360px;
+  padding: 12px;
+}
+
+.popup label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.matches {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.matches button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 2px 0;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+
+.matches button:hover,
+.matches button:focus-visible {
+  border-color: var(--line);
+  background: var(--field);
+}
+
+.matches .detail,
+.matches .empty {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.gateway[data-kind="ok"] {
+  color: var(--ok);
+}
+
+.gateway[data-kind="error"] {
+  color: var(--error);
+}
+
+/* Address book page */
+
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.page header p {
+  color: var(--muted);
+}
+
+section {
+  margin: 24px 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.row label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row label.grow {
+  flex: 1 1 200px;
+}
+
+.row label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+td.actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+td.actions button + button {
+  margin-left: 4px;
+}
+
+.inline-edit {
+  display: flex;
+  gap: 4px;
+}
+
+@media (max-width: 600px) {
+  thead {
+    display: none;
+  }
+
+  tr,
+  td {
+    display: block;
+    border: 0;
+  }
+
+  tr {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  td.actions {
+    text-align: left;
+  }
+}

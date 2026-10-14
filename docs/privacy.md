@@ -17,7 +17,7 @@ Content addressing does not encrypt anything. A hard-to-guess CID or address is 
 
 - **Publisher:** the publishing node announces the content it imports. Meshkeep refuses symlinks and dotfiles (`.env`, `.git`, …) unless `--include-hidden` is passed, but reviewing what goes into the directory is still the publisher's job.
 - **Replica:** an operator can read everything it replicates and sees the gateway requests it serves. Its peer ID and IP address are visible to anyone fetching from it.
-- **Visitor:** the peers or gateway a visitor uses learn what the visitor asked for. A remote gateway sees the visitor's HTTP metadata. The planned extension fetches from peers directly, which avoids a gateway but exposes the visitor's IP address to those peers.
+- **Visitor:** the peers or gateway a visitor uses learn what the visitor asked for. A remote gateway sees the visitor's HTTP metadata. The extension opens sites on the visitor's own Kubo node, which fetches from peers directly: that avoids a remote gateway but exposes the visitor's IP address to those peers.
 
 ## Address Books
 
@@ -29,7 +29,7 @@ A site key proves control over the address, not who someone is. Reusing a key, a
 
 ## What Meshkeep Does Not Collect
 
-There are no accounts, analytics, telemetry, or hosted services. The CLI talks only to the local Kubo node. Its local state (keys, address book, replica list) is protected only by file permissions (0600/0700) and normal host security. Machine output and logs never contain private keys.
+There are no accounts, analytics, telemetry, or hosted services. The CLI talks only to the local Kubo node. The extension keeps its address book in the browser's extension storage and makes no request of its own except checking that the local gateway answers. Its local state (keys, address book, replica list) is protected only by file permissions (0600/0700) and normal host security. Machine output and logs never contain private keys.
 
 ## Deletion
 

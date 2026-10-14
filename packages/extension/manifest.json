@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Meshkeep",
+  "description": "Open Meshkeep sites by petname from your address book, through the IPFS gateway on your own computer.",
+  "version": "0.0.0",
+  "minimum_chrome_version": "120",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Meshkeep",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "book.html",
+    "open_in_tab": true
+  },
+  "omnibox": {
+    "keyword": "mk"
+  },
+  "permissions": ["storage"],
+  "content_security_policy": {
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src http://bafkqaaa.ipfs.localhost:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  }
+}
