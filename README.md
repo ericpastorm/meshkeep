@@ -46,7 +46,7 @@ meshkeep replicate their-blog            # full copy + keeps the address alive
 meshkeep replica run                     # stays running: re-checks every site every 6 hours
 ```
 
-Instead of `replica run`, you can run `meshkeep sync` from cron at least every 12 hours. Or run a whole replica, Kubo included, with Docker: `cd examples/docker && docker compose up -d --build` (see the [operator guide](docs/operators.md#run-a-replica-with-docker)).
+Instead of `replica run`, you can run `meshkeep sync` from cron at least every 12 hours. Or run a whole replica, Kubo included, with Docker: `cd examples/docker && docker compose up -d` pulls the published image (`ghcr.io/ericpastorm/meshkeep`, amd64 and arm64) and Kubo (see the [operator guide](docs/operators.md#run-a-replica-with-docker)).
 
 Replicas only fetch what they agreed to hold. Each site has a size and block limit (by default 2 GiB and 250,000 blocks). Set it with `replicate --max-size 512MiB --max-blocks 50000`; the value is remembered, and `sync` applies it. Versions over the limit are refused and left unpinned. An interrupted or timed-out fetch (`--fetch-timeout`, default 30 minutes) records nothing, and the next run resumes from the blocks already downloaded.
 

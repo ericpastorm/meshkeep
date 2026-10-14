@@ -1,7 +1,7 @@
 # A Meshkeep replica: Kubo plus the Meshkeep replica daemon.
 #
 #   cd examples/docker
-#   docker compose up -d --build
+#   docker compose up -d
 #   docker compose exec meshkeep meshkeep replicate k51…     # add a site to replicate
 #   docker compose logs -f meshkeep                          # JSON-line daemon log
 #
@@ -25,9 +25,9 @@ services:
       - ./kubo-init.sh:/container-init.d/010-meshkeep.sh:ro
 
   meshkeep:
-    build:
-      context: ../..
-    image: meshkeep:local
+    # Meshkeep 0.2.0 from GitHub Container Registry, pinned by index digest (linux/amd64, linux/arm64).
+    # To build from this checkout instead: docker compose -f compose.yaml -f compose.build.yaml up -d --build
+    image: ghcr.io/ericpastorm/meshkeep:0.2.0@sha256:47d33b58adfde9e01ceb73ee3c3a7763cc41185a3368b003450d9788cc490a3b
     restart: unless-stopped
     # Share Kubo's network namespace, so the RPC is reachable on 127.0.0.1:5001 and nowhere else.
     network_mode: service:kubo

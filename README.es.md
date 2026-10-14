@@ -46,7 +46,7 @@ meshkeep replicate su-blog               # copia completa + mantiene viva la dir
 meshkeep replica run                     # se queda en marcha: revisa cada web cada 6 horas
 ```
 
-En lugar de `replica run`, puedes ejecutar `meshkeep sync` desde cron al menos cada 12 horas. O montar una réplica completa, Kubo incluido, con Docker: `cd examples/docker && docker compose up -d --build` (consulta la [guía de operador](docs/operators.md#run-a-replica-with-docker)).
+En lugar de `replica run`, puedes ejecutar `meshkeep sync` desde cron al menos cada 12 horas. O montar una réplica completa, Kubo incluido, con Docker: `cd examples/docker && docker compose up -d` descarga la imagen publicada (`ghcr.io/ericpastorm/meshkeep`, amd64 y arm64) y Kubo (consulta la [guía de operador](docs/operators.md#run-a-replica-with-docker)).
 
 Las réplicas solo descargan lo que han aceptado guardar. Cada web tiene un límite de tamaño y de bloques (por defecto 2 GiB y 250.000 bloques). Se ajusta con `replicate --max-size 512MiB --max-blocks 50000`; el valor se recuerda y `sync` lo aplica. Las versiones que superan el límite se rechazan y no se fijan. Una descarga interrumpida o que agota el tiempo (`--fetch-timeout`, 30 minutos por defecto) no registra nada, y la siguiente ejecución continúa desde los bloques ya descargados.
 
