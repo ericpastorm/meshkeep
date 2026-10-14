@@ -5,7 +5,9 @@
 # Node.js 24 on Alpine, pinned by index digest.
 ARG NODE_IMAGE=node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 
-FROM ${NODE_IMAGE} AS build
+# The build output is plain JavaScript, so build once on the builder's own platform and copy
+# the result into each target platform's image.
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS build
 WORKDIR /src
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json LICENSE ./
