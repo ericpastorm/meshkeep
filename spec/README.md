@@ -68,6 +68,15 @@ Decoding and re-encoding any valid book MUST give the canonical bytes. For examp
 
 An address book is only as trustworthy as its source. A book received from someone else is a set of suggestions. Clients MUST NOT silently replace an existing petname with an imported one.
 
+## 5. Published Address Books
+
+A site publishes an address book by containing the file `.well-known/meshkeep/address-book.json` at its root. See [ADR 0003](../docs/adr/0003-published-address-books.md).
+
+- The file MUST be a valid `meshkeep-address-book-v1` book, at most 4 MiB. Readers MUST apply every rule of section 4, and MUST reject the whole book if any rule fails.
+- The book has no signature of its own. It is authentic exactly when the version that contains it is authentic: the version must be selected by a signed record of the publishing address (section 3) and retrieved by CID.
+- Readers MUST NOT treat entry order as meaningful.
+- A replica that follows a book MUST read it only from a version it has verified and stored completely. It MUST NOT drop sites it already replicates because the book cannot be fetched or read.
+
 ## Changing This Specification
 
 A change to a format, the signing input, address derivation, or ordering rules requires an ADR in `docs/adr/` and updated fixtures. New format versions get new `format` strings. Readers keep rejecting versions they do not support.

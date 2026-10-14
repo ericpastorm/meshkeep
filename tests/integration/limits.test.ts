@@ -21,7 +21,7 @@ const { cli, meshkeep } = cliRunner(cluster, () => scratch);
 /** The replica must end each refusal with no pin and nothing recorded. */
 async function expectNothingReplicated(cid: string) {
   expect(await cluster.node("replica").kubo.isPinnedRecursively(cid)).toBe(false);
-  expect(await meshkeep("replica", "sync")).toEqual({ sites: [] });
+  expect(await meshkeep("replica", "sync")).toEqual({ follows: [], sites: [] });
 }
 
 beforeAll(async () => {

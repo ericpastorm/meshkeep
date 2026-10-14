@@ -44,6 +44,10 @@ Blocks are verified by CID. A replica that cannot fetch every block fails instea
 
 A publisher can also publish a huge graph to fill replicas' disks, or a root whose declared size understates the real one. Each replica therefore enforces per-site byte and block limits three times: on the declared size, during the fetch (the request is aborted), and on the exact size afterwards. It also enforces a fetch timeout. Refused versions are not pinned, and nothing is recorded. Remaining gaps: unpinned blocks from a refused or interrupted fetch use disk until Kubo garbage collection runs, and limits apply per site, not as a total across sites.
 
+### Followed books
+
+Following a book delegates the choice of what to host to its curator (ADR 0003). If a curator's key is stolen, the thief can make followers fetch unwanted content, or drop sites they only held through that book. This is bounded, not prevented: `--max-sites` refuses oversized books as a whole, and per-site limits cap each fetch. Sites the operator replicates themselves, or that another followed book lists, are never dropped. A book is read only from a version the replica has verified (signature, no rollback, complete graph). A book that cannot be read leaves the last known list in place, so withholding a book cannot shrink a replica. The remedy for a bad curator is `unfollow`.
+
 ### Misleading address books
 
 A shared address book can map a familiar petname to an impostor's address. Importing never overwrites an existing petname without `--replace`. The address itself is the identity; the petname is only a label.

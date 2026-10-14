@@ -6,7 +6,10 @@ import type { StoredKey } from "./keystore.js";
 import { readSite } from "./site.js";
 import {
   DEFAULT_REPLICA_LIMITS,
+  type FollowedBook,
+  followsTracking,
   type ReplicaLimits,
+  type ReplicaState,
   type ReplicaStateStore,
   type ReplicatedSite,
 } from "./state.js";
@@ -181,6 +184,13 @@ export interface ReplicateOptions {
   readonly keep?: number;
   /** Cancels the record lookup and the fetch, for a daemon that is shutting down. */
   readonly signal?: AbortSignal;
+  /** The operator asked for this site (`meshkeep replicate`); remembered. */
+  readonly manual?: boolean;
+  /**
+   * A follow that is about to start tracking this site. It allows replicating a site that is
+   * neither manual nor tracked yet, and supplies its defaults (used when following a book).
+   */
+  readonly requestedBy?: FollowedBook;
 }
 
 class LimitExceeded extends CliError {}
@@ -238,17 +248,27 @@ async function replicateLocked(
   }
   const cid = parseContentCid(entry.value);
 
-  const sites = await state.load();
+  const current = await state.read();
+  const sites = current.sites;
   const known = sites.find((site) => site.name === name);
+  const manual = options.manual === true || known?.manual === true;
+  const tracking = followsTracking(current, name);
+  // A follow that adds a site supplies its limits and retention; the operator's own choices
+  // for a site they replicate themselves always win.
+  const followDefaults = options.requestedBy ?? tracking[0];
+  if (!manual && followDefaults === undefined) {
+    throw new CliError(`${name} is neither replicated by request nor listed by a followed book`);
+  }
   if (known !== undefined && entry.sequence < known.sequence) {
     throw new CliError(
       `stale record for ${name}: sequence ${entry.sequence} is older than verified ${known.sequence}`,
     );
   }
 
+  const defaults = known ?? (manual ? undefined : followDefaults) ?? DEFAULT_REPLICA_LIMITS;
   const limits: ReplicaLimits = {
-    maxBytes: options.limits?.maxBytes ?? known?.maxBytes ?? DEFAULT_REPLICA_LIMITS.maxBytes,
-    maxBlocks: options.limits?.maxBlocks ?? known?.maxBlocks ?? DEFAULT_REPLICA_LIMITS.maxBlocks,
+    maxBytes: options.limits?.maxBytes ?? defaults.maxBytes,
+    maxBlocks: options.limits?.maxBlocks ?? defaults.maxBlocks,
   };
   const fetchTimeoutMs = options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const overLimit = (detail: string) =>
@@ -312,7 +332,7 @@ async function replicateLocked(
 
   // The current version always moves to the end, so retention never drops it, even when a
   // publisher points the address back at an older version.
-  const keep = options.keep ?? known?.keep ?? 0;
+  const keep = options.keep ?? known?.keep ?? (manual ? 0 : (followDefaults?.keep ?? 0));
   const history = [...(known?.versions ?? []).filter((version) => version !== cid), cid];
   const owned = new Set(known?.ownedPins ?? []);
   if (!alreadyPinned) {
@@ -330,6 +350,7 @@ async function replicateLocked(
     ...limits,
     keep,
     ownedPins: [...owned],
+    manual,
   };
   // A failed unpin must not lose the new version: it is complete and pinned, so record it,
   // and keep the versions that could not be released so the next run retries them.
@@ -340,7 +361,7 @@ async function replicateLocked(
     versions,
     ownedPins: draft.ownedPins.filter((pin) => versions.includes(pin)),
   };
-  await state.save([...others, site]);
+  await state.write({ sites: [...others, site], follows: current.follows });
   if (putFailure !== undefined) {
     throw new CliError(
       `${name}: replicated ${cid}, but could not re-put its record (${putFailure.message}); ` +
@@ -361,34 +382,80 @@ export interface UnreplicateResult extends PinRelease {
 }
 
 /**
+ * Releases a site's pins and removes it from `state`. The site stays recorded if any release
+ * fails, so the caller can report it and a later run can retry.
+ */
+async function dropSite(
+  kubo: KuboClient,
+  state: ReplicaState,
+  site: ReplicatedSite,
+  options: { keepPins?: boolean },
+): Promise<{ state: ReplicaState; result: UnreplicateResult }> {
+  const others = state.sites.filter((candidate) => candidate.name !== site.name);
+  const release =
+    options.keepPins === true
+      ? { released: [], kept: [...site.versions], failed: [] }
+      : await releaseVersions(kubo, site, site.versions, others);
+  const result = { name: site.name, ...release };
+  return release.failed.length > 0
+    ? { state, result }
+    : { state: { ...state, sites: others }, result };
+}
+
+/**
+ * Drops every site that is no longer wanted: not manual and not tracked by any follow. Called
+ * after a follow changes. Sites whose pins cannot be released stay recorded for a retry.
+ */
+export async function dropUnwantedLocked(
+  kubo: KuboClient,
+  store: ReplicaStateStore,
+  options: { keepPins?: boolean } = {},
+): Promise<UnreplicateResult[]> {
+  let state = await store.read();
+  const results: UnreplicateResult[] = [];
+  for (const site of state.sites) {
+    if (site.manual || followsTracking(state, site.name).length > 0) {
+      continue;
+    }
+    const dropped = await dropSite(kubo, state, site, options);
+    state = dropped.state;
+    results.push(dropped.result);
+  }
+  await store.write(state);
+  return results;
+}
+
+/**
  * Stops replicating a site. Its pins are released under the same rules as retention, unless
- * `keepPins` is set. The site stays recorded until every release succeeds, so a failed run
- * can be retried.
+ * `keepPins` is set. A site a followed book still lists is refused: unfollow the book instead.
+ * The site stays recorded until every release succeeds, so a failed run can be retried.
  */
 export async function unreplicateSite(
   kubo: KuboClient,
-  state: ReplicaStateStore,
+  store: ReplicaStateStore,
   name: string,
   options: { keepPins?: boolean } = {},
 ): Promise<UnreplicateResult> {
-  return state.locked(async () => {
-    const sites = await state.load();
-    const site = sites.find((candidate) => candidate.name === name);
+  return store.locked(async () => {
+    const state = await store.read();
+    const site = state.sites.find((candidate) => candidate.name === name);
     if (site === undefined) {
       throw new CliError(`${name} is not replicated on this node`);
     }
-    const others = sites.filter((candidate) => candidate.name !== name);
-    const release =
-      options.keepPins === true
-        ? { released: [], kept: [...site.versions], failed: [] }
-        : await releaseVersions(kubo, site, site.versions, others);
-    if (release.failed.length > 0) {
+    const tracking = followsTracking(state, name).map((follow) => follow.curator);
+    if (tracking.length > 0) {
       throw new CliError(
-        `could not unpin ${release.failed.join(", ")}; ${name} is still recorded, run again`,
+        `${name} is listed by the followed book of ${tracking.join(", ")}; unfollow it instead`,
       );
     }
-    await state.save(others);
-    return { name, ...release };
+    const dropped = await dropSite(kubo, state, site, options);
+    if (dropped.result.failed.length > 0) {
+      throw new CliError(
+        `could not unpin ${dropped.result.failed.join(", ")}; ${name} is still recorded, run again`,
+      );
+    }
+    await store.write(dropped.state);
+    return dropped.result;
   });
 }
 

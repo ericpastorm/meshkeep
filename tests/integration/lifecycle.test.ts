@@ -198,6 +198,6 @@ describe.sequential("site lifecycle", () => {
     expect(result).toEqual({ name: siteName, released: [V1_CID, V2_CID], kept: [], failed: [] });
     expect(await kubo.isPinnedRecursively(V1_CID)).toBe(false);
     expect(await kubo.isPinnedRecursively(V2_CID)).toBe(false);
-    expect(await meshkeep("replica-1", "sync")).toEqual({ sites: [] });
+    expect(await meshkeep("replica-1", "sync")).toEqual({ follows: [], sites: [] });
   });
 });

@@ -52,6 +52,16 @@ Replicas only fetch what they agreed to hold. Each site has a size and block lim
 
 Every version stays pinned unless you choose otherwise: `replicate --keep 3` keeps the three most recent versions (remembered for `sync`), and `meshkeep unreplicate their-blog` stops following a site. Both only ever unpin versions this replica pinned itself, never a pin you or `meshkeep publish` made on the same node.
 
+Help keep a whole community online by following a curator's published address book, the way you would subscribe to a torrent list:
+
+```sh
+meshkeep book publish --key my-list      # curator: publish your address book as a site
+meshkeep follow k51…curator              # replica: replicate every site it lists, and keep up
+meshkeep unfollow k51…curator            # stop, releasing the sites only that book wanted
+```
+
+`sync` and `replica run` pick up the curator's changes. Sites the book stops listing are dropped unless you replicate them yourself or another followed book lists them. `--max-sites` (default 100) and per-site limits bound what a curator can ask of you. See [ADR 0003](docs/adr/0003-published-address-books.md).
+
 Visit a site through any Kubo node's gateway: `http://127.0.0.1:8080/ipns/k51…/`.
 
 Move publishing to another machine:
@@ -106,7 +116,7 @@ The integration test publishes v1 and replicates it to two replicas, then shuts 
 
 ## Roadmap
 
-Next up: following published address books, then the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
+Next up: the browser extension with an address-book UI and in-browser verified retrieval. See [ROADMAP.md](ROADMAP.md).
 
 ## Contributing And Security
 

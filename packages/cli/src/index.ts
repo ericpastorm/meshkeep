@@ -1,5 +1,6 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 
 import { DEFAULT_API_URL, KuboClient, KuboError } from "@meshkeep/kubo";
 import {
@@ -8,6 +9,7 @@ import {
   decodeAddressBook,
   encodeAddressBook,
   ProtocolError,
+  PUBLISHED_ADDRESS_BOOK_PATH,
   parseContentCid,
   parseIpnsName,
   parsePetname,
@@ -21,6 +23,14 @@ import { Command, CommanderError, InvalidArgumentError, Option } from "commander
 import { DEFAULT_DAEMON_INTERVAL_MS, runReplicaDaemon } from "./daemon.js";
 import { CliError } from "./errors.js";
 import { readLimitedFile } from "./files.js";
+import {
+  DEFAULT_MAX_SITES,
+  type FollowSettings,
+  followBook,
+  refreshFollow,
+  unfollowBook,
+  wantedSites,
+} from "./follows.js";
 import { Keystore } from "./keystore.js";
 import { AddressBookStore, DEFAULT_REPLICA_LIMITS, ReplicaStateStore } from "./state.js";
 import { parseByteSize, parseKeepCount, parsePositiveInteger } from "./units.js";
@@ -339,6 +349,7 @@ export function createProgram(options: CliOptions = {}): Command {
         ) => {
           const { name } = await book.resolveTarget(target);
           const replicateOptions: ReplicateOptions = {
+            manual: true,
             recordTimeoutMs: opts.recordTimeout,
             fetchTimeoutMs: opts.fetchTimeout,
             limits: {
@@ -382,43 +393,174 @@ export function createProgram(options: CliOptions = {}): Command {
       }),
     );
 
+  const isOperational = (error: unknown): error is Error =>
+    error instanceof CliError || error instanceof KuboError || error instanceof ProtocolError;
+
   program
     .command("sync")
-    .description("re-run replicate for every site this node replicates, with its stored limits")
+    .description(
+      "refresh every followed book, then re-run replicate for every wanted site, with stored limits",
+    )
     .addOption(fetchTimeoutOption())
     .action(
       action(async (opts: { fetchTimeout: number }) => {
-        const sites = await replicas.load();
         const client = kubo();
+        const follows: object[] = [];
         const results: object[] = [];
         const lines: string[] = [];
         let failed = 0;
-        for (const site of sites) {
+        for (const follow of (await replicas.read()).follows) {
           try {
-            const result = await replicateSite(client, replicas, site.name, {
+            const refresh = await refreshFollow(client, replicas, follow.curator, {
               fetchTimeoutMs: opts.fetchTimeout,
             });
-            results.push({ ok: true, ...result });
-            lines.push(`${result.updated ? "updated" : "current"} ${site.name} ${result.cid}`);
+            follows.push({ ok: true, ...refresh });
+            lines.push(
+              `book    ${follow.curator}: ${refresh.sites.length} sites ` +
+                `(+${refresh.added.length} -${refresh.removed.length})`,
+            );
           } catch (error) {
-            if (
-              !(
-                error instanceof CliError ||
-                error instanceof KuboError ||
-                error instanceof ProtocolError
-              )
-            ) {
+            if (!isOperational(error)) {
               throw error;
             }
             failed += 1;
-            results.push({ ok: false, name: site.name, error: error.message });
-            lines.push(`failed  ${site.name}: ${error.message}`);
+            follows.push({ ok: false, curator: follow.curator, error: error.message });
+            lines.push(`failed  book ${follow.curator}: ${error.message}`);
           }
         }
-        emit({ sites: results }, lines.length > 0 ? lines : ["no replicated sites"]);
+        for (const name of await wantedSites(replicas)) {
+          try {
+            const result = await replicateSite(client, replicas, name, {
+              fetchTimeoutMs: opts.fetchTimeout,
+            });
+            results.push({ ok: true, ...result });
+            lines.push(`${result.updated ? "updated" : "current"} ${name} ${result.cid}`);
+          } catch (error) {
+            if (!isOperational(error)) {
+              throw error;
+            }
+            failed += 1;
+            results.push({ ok: false, name, error: error.message });
+            lines.push(`failed  ${name}: ${error.message}`);
+          }
+        }
+        emit({ follows, sites: results }, lines.length > 0 ? lines : ["no replicated sites"]);
         if (failed > 0) {
           setExitCode(1);
         }
+      }),
+    );
+
+  const followOptions = (command: Command) =>
+    command
+      .addOption(
+        new Option("--max-sites <count>", "refuse the book if it lists more sites than this")
+          .argParser(argument(parsePositiveInteger))
+          .default(undefined, `stored, else ${DEFAULT_MAX_SITES}`),
+      )
+      .addOption(
+        new Option(
+          "--max-size <size>",
+          "size limit for each site this follow adds, e.g. 512MiB",
+        ).argParser(argument(parseByteSize)),
+      )
+      .addOption(
+        new Option("--max-blocks <count>", "block limit for each site this follow adds").argParser(
+          argument(parsePositiveInteger),
+        ),
+      )
+      .addOption(
+        new Option(
+          "--keep <count>",
+          'versions to keep for each site this follow adds, or "all"',
+        ).argParser(argument(parseKeepCount)),
+      )
+      .addOption(fetchTimeoutOption());
+
+  followOptions(
+    program
+      .command("follow <curator>")
+      .description(
+        "replicate every site a curator's published address book lists, and keep up with it",
+      ),
+  ).action(
+    action(
+      async (
+        target: string,
+        opts: {
+          maxSites?: number;
+          maxSize?: number;
+          maxBlocks?: number;
+          keep?: number;
+          fetchTimeout: number;
+        },
+      ) => {
+        const { name: curator } = await book.resolveTarget(target);
+        const settings: FollowSettings = {
+          ...(opts.maxSites === undefined ? {} : { maxSites: opts.maxSites }),
+          limits: {
+            ...(opts.maxSize === undefined ? {} : { maxBytes: opts.maxSize }),
+            ...(opts.maxBlocks === undefined ? {} : { maxBlocks: opts.maxBlocks }),
+          },
+          ...(opts.keep === undefined ? {} : { keep: opts.keep }),
+        };
+        const { refresh, sites } = await followBook(kubo(), replicas, curator, {
+          fetchTimeoutMs: opts.fetchTimeout,
+          settings,
+        });
+        const failures = sites.filter((site) => !site.ok);
+        emit({ ...refresh, replicated: sites }, [
+          `following ${curator} (book ${refresh.bookCid})`,
+          `sites:    ${refresh.sites.length} listed, ${sites.length - failures.length} replicated now`,
+          ...failures.map((site) => `failed   ${site.name}: ${site.error} (retried by sync)`),
+          ...refresh.dropped.map((drop) => `dropped  ${drop.name} (no longer listed)`),
+        ]);
+        if (failures.length > 0) {
+          setExitCode(1);
+        }
+      },
+    ),
+  );
+
+  program
+    .command("unfollow <curator>")
+    .description("stop following a book and stop replicating the sites only it wanted")
+    .option("--keep-pins", "stop replicating those sites but leave every pin in place")
+    .action(
+      action(async (target: string, opts: { keepPins?: boolean }) => {
+        const { name: curator } = await book.resolveTarget(target);
+        const result = await unfollowBook(kubo(), replicas, curator, {
+          keepPins: opts.keepPins === true,
+        });
+        const failed = result.dropped.filter((drop) => drop.failed.length > 0);
+        emit(result, [
+          `stopped following ${curator}`,
+          ...result.dropped.map(
+            (drop) =>
+              `dropped  ${drop.name}${drop.failed.length > 0 ? ` (could not unpin ${drop.failed.join(", ")}; run sync to retry)` : ""}`,
+          ),
+        ]);
+        if (failed.length > 0) {
+          setExitCode(1);
+        }
+      }),
+    );
+
+  program
+    .command("follows")
+    .description("list the address books this node follows")
+    .action(
+      action(async () => {
+        const { follows } = await replicas.read();
+        emit(
+          { follows },
+          follows.length === 0
+            ? ["no followed books"]
+            : follows.map(
+                (follow) =>
+                  `${follow.curator}\t${follow.sites.length} sites (max ${follow.maxSites})\tbook ${follow.bookCid}`,
+              ),
+        );
       }),
     );
 
@@ -457,7 +599,13 @@ export function createProgram(options: CliOptions = {}): Command {
         await runReplicaDaemon({
           intervalMs: opts.interval,
           signal,
-          listSites: async () => (await replicas.load()).map((site) => site.name),
+          listFollows: async () => (await replicas.read()).follows.map((follow) => follow.curator),
+          refresh: (curator, stop) =>
+            refreshFollow(client, replicas, curator, {
+              fetchTimeoutMs: opts.fetchTimeout,
+              signal: stop,
+            }),
+          listSites: () => wantedSites(replicas),
           replicate: (name, stop) =>
             replicateSite(client, replicas, name, {
               fetchTimeoutMs: opts.fetchTimeout,
@@ -540,6 +688,46 @@ export function createProgram(options: CliOptions = {}): Command {
     .action(
       action(async () => {
         stdout(encodeAddressBook(await book.load()));
+      }),
+    );
+
+  bookCommand
+    .command("publish")
+    .description(
+      `publish your address book as a site (at ${PUBLISHED_ADDRESS_BOOK_PATH}) others can follow`,
+    )
+    .requiredOption("-k, --key <label>", "site key to publish the book under")
+    .option(
+      "--lifetime <duration>",
+      "how long the signed record stays valid",
+      DEFAULT_RECORD_LIFETIME,
+    )
+    .option("--ttl <duration>", "how long resolvers may cache the record", DEFAULT_RECORD_TTL)
+    .action(
+      action(async (opts: { key: string; lifetime: string; ttl: string }) => {
+        const siteKey = await keystore.load(opts.key);
+        const contents = encodeAddressBook(await book.load());
+        const directory = await mkdtemp(join(tmpdir(), "meshkeep-book-"));
+        try {
+          const file = join(directory, ...PUBLISHED_ADDRESS_BOOK_PATH.split("/"));
+          await mkdir(dirname(file), { recursive: true });
+          await writeFile(file, contents);
+          const result = await publishSite(kubo(), siteKey, {
+            directory,
+            lifetime: opts.lifetime,
+            ttl: opts.ttl,
+            includeHidden: false,
+            log,
+          });
+          emit(result, [
+            `name:     ${result.name}`,
+            `cid:      ${result.cid}`,
+            `sequence: ${result.sequence}`,
+            `others can follow it with: meshkeep follow ${result.name}`,
+          ]);
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
       }),
     );
 

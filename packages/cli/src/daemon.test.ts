@@ -18,6 +18,7 @@ function result(name: string, updated = false): ReplicateResult {
     maxBlocks: 1,
     keep: 0,
     ownedPins: [],
+    manual: true,
     updated,
     blocks: 1,
     bytes: 1,
@@ -211,6 +212,83 @@ describe("runReplicaDaemon", () => {
     });
 
     expect(events.map((event) => event.event)).toEqual(["started", "stopped"]);
+  });
+});
+
+describe("runReplicaDaemon with followed books", () => {
+  function refreshResult(curator: string, sites: string[]) {
+    return { curator, bookCid: "bafybook", sites, added: sites, removed: [], dropped: [] };
+  }
+
+  it("refreshes books before sites, so a newly listed site is replicated in the same cycle", async () => {
+    let listed: string[] = [];
+    const order: string[] = [];
+    const controller = new AbortController();
+    const events: DaemonEvent[] = [];
+    await runReplicaDaemon({
+      intervalMs: HOUR,
+      signal: controller.signal,
+      listFollows: async () => ["curator"],
+      refresh: async (curator) => {
+        order.push(`refresh ${curator}`);
+        listed = ["new-site"];
+        return refreshResult(curator, listed);
+      },
+      listSites: async () => listed,
+      replicate: async (name) => {
+        order.push(`replicate ${name}`);
+        return result(name, true);
+      },
+      log: (event) => events.push(event),
+      now: () => 0,
+      sleep: async () => controller.abort(),
+    });
+
+    expect(order).toEqual(["refresh curator", "replicate new-site"]);
+    expect(events.find((event) => event.event === "book-refreshed")).toMatchObject({
+      level: "info",
+      curator: "curator",
+      sites: 1,
+      added: ["new-site"],
+    });
+  });
+
+  it("backs off a failing book on its own schedule without holding back the sites", async () => {
+    const { events, calls } = await (async () => {
+      let clock = 0;
+      const controller = new AbortController();
+      const events: DaemonEvent[] = [];
+      const calls: { name: string; at: number }[] = [];
+      let sleeps = 0;
+      await runReplicaDaemon({
+        intervalMs: HOUR,
+        signal: controller.signal,
+        listFollows: async () => ["curator"],
+        refresh: async () => {
+          throw new CliError("the book is invalid");
+        },
+        listSites: async () => ["site"],
+        replicate: async (name) => {
+          calls.push({ name, at: clock });
+          return result(name);
+        },
+        log: (event) => events.push(event),
+        now: () => clock,
+        sleep: async (ms) => {
+          clock += ms;
+          sleeps += 1;
+          if (sleeps >= 3) {
+            controller.abort();
+          }
+        },
+      });
+      return { events, calls };
+    })();
+
+    expect(
+      events.filter((event) => event.event === "book-failed").map((e) => e.retryInSeconds),
+    ).toEqual([60, 120, 240]);
+    expect(calls).toEqual([{ name: "site", at: 0 }]);
   });
 });
 
