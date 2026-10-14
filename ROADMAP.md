@@ -6,7 +6,7 @@ A living plan, not a release promise. An item is checked only when it is impleme
 
 Static websites that anyone can publish for free under a key-based address, that volunteers can keep alive without the publisher, and that people can visit through names in their own address book. No servers to rent, no registrars, no blockchain, and no Meshkeep service on the critical path. See [ADR 0002](docs/adr/0002-resilient-sites-and-address-book.md).
 
-## v0.1 Core — in progress
+## v0.1 Core — done
 
 - [x] Protocol package: Ed25519 key encoding, address derivation checked against Kubo, CID and address parsing, petnames, `meshkeep-address-book-v1` with canonical encoding and fixtures.
 - [x] Kubo RPC adapter that refuses non-loopback endpoints by default.
@@ -16,7 +16,7 @@ Static websites that anyone can publish for free under a key-based address, that
 - [x] Operator guide ([docs/operators.md](docs/operators.md)): Kubo setup, network rules, publishing and keeping an address alive, key backup and transfer, replica limits, `sync` scheduling with verified systemd units and cron, disk space, troubleshooting.
 - [x] Bounded replication: per-site size and block limits checked on the declared size, during the fetch, and after it; fetch timeouts; an interrupted transfer records nothing and resumes on the next run.
 
-## v0.2 Replica Daemon
+## v0.2 Replica Daemon — done (0.2.0)
 
 - [x] `meshkeep replica run`: periodic replication and record re-put per site, exponential backoff for failing sites, stored limits and retention, JSON-line logs, clean stop on SIGTERM/SIGINT.
 - [x] Retention policy (`replicate --keep N`, remembered for `sync`) and safe pruning: only pins the replica created, never a version another site uses, never the current version.
@@ -25,7 +25,7 @@ Static websites that anyone can publish for free under a key-based address, that
 - [x] Follow a published address book ([ADR 0003](docs/adr/0003-published-address-books.md)): `book publish`, `follow`/`unfollow`/`follows`, refreshed by `sync` and `replica run`, `--max-sites` and per-site limits, sites dropped only when nothing else wants them.
 - [x] systemd user unit for the replica daemon (`examples/systemd/meshkeep-replica.service`).
 - [x] Container image for volunteers running replicas: `Dockerfile` (Node.js + one bundled file, non-root) and `examples/docker/compose.yaml` (Kubo + daemon sharing a network namespace, RPC on loopback only).
-- [ ] Publish the image to GitHub Container Registry from CI, so volunteers do not have to build it.
+- [x] Publish the image to GitHub Container Registry from CI, so volunteers do not have to build it: `ghcr.io/ericpastorm/meshkeep` for amd64 and arm64 on every version tag, with a build provenance attestation; `examples/docker/compose.yaml` pins it by digest.
 
 ## v0.3 Browser Extension
 
@@ -68,3 +68,4 @@ These items need an ADR before any work starts:
 - 2026-10-14: Replica daemon. `pnpm check` passed with 157 unit tests; the daemon's schedule and backoff are checked on a fake clock. A new integration test on real Kubo saw the daemon notice a v2 publication by itself and replicate it, run alongside a manual `replicate --keep 1` through the state lock, and stop cleanly with no lock left. The built binary stopped with exit 0 on both SIGTERM and SIGINT. The unit passes `systemd-analyze --user verify`.
 - 2026-10-14: Container image. `pnpm check` now also bundles the CLI and runs the bundle. A new integration suite builds the image from the checkout and runs it in a Kubo node's network namespace (non-root, read-only, no capabilities): `doctor` passed, `docker exec … replicate` worked, the daemon replicated a new version by itself, and `docker stop` exited 0. With the compose file's own `kubo-init.sh`, on an internal Docker network, the sidecar reached the RPC while another container on the same network got "connection refused"; the gateway answered. `docker compose config` validates the compose file.
 - 2026-10-14: Published address books (ADR 0003, spec section 5). `pnpm check` passed with 176 unit tests, covering book reading limits, `--max-sites`, follow limits versus the operator's own, drops versus sites kept as manual or listed by another book, a failed refresh keeping the last list, `unreplicate` refusal, `unfollow` with and without pins, legacy state, and the daemon refreshing books before sites with its own backoff. A new integration suite on real Kubo: a curator ran `book publish`, a replica followed it and replicated both listed sites, the curator swapped one site, and `sync` dropped the removed site (its pin released) and replicated the new one; `unfollow` released everything only the book wanted.
+- 2026-10-14: Release 0.2.0. Tag `v0.2.0` on `main` (`389e07e`, CI green, and locally `pnpm check` with 177 unit tests and `pnpm test:integration` 24/24) published `ghcr.io/ericpastorm/meshkeep` as `0.2.0`, `0.2`, and `latest` (index `sha256:47d33b58…`). Pulled anonymously, both `linux/amd64` and `linux/arm64` ran and reported 0.2.0 as the `node` user. `gh attestation verify` accepted the SLSA provenance for `refs/tags/v0.2.0` signed by `image.yml` and refused another source ref. The compose file with the published image, on an internal Docker network: `doctor` passed against Kubo 0.42.0, the daemon started, another container got "connection refused" from the RPC while the gateway answered, and `docker compose stop` exited 0. The workflow's tag check accepted `v0.2.0` against `package.json`.

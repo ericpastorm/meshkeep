@@ -244,7 +244,7 @@ If you only want to be a replica, Docker is the shortest path: [`examples/docker
 
 ```sh
 cd examples/docker
-docker compose up -d --build
+docker compose up -d
 docker compose exec meshkeep meshkeep replicate k51qzi5uqu5d…    # add sites
 docker compose exec meshkeep meshkeep book add their-blog k51…   # petnames work too
 docker compose logs -f meshkeep                                  # JSON-line daemon log
@@ -258,7 +258,16 @@ How it is wired:
 - Kubo runs with `--enable-gc`, so blocks from refused or interrupted fetches are reclaimed. Pins are never collected.
 - If you recreate the `kubo` container (for example after changing its image), recreate `meshkeep` too (`docker compose up -d --force-recreate`), because it lives in Kubo's network namespace.
 
-The image itself is built from this checkout (`Dockerfile` at the repository root). It contains Node.js and a single bundled `meshkeep.mjs`, plus the licenses of everything bundled into it (`/app/licenses`).
+The image is published to GitHub Container Registry as `ghcr.io/ericpastorm/meshkeep` for `linux/amd64` and `linux/arm64`, with the tags `0.2.0`, `0.2`, and `latest`. It contains Node.js and a single bundled `meshkeep.mjs`, plus the licenses of everything bundled into it (`/app/licenses`). The compose file pins it by digest, like Kubo, so `docker compose up -d` always runs the image the file was tested with. To upgrade, update your checkout and run `docker compose up -d` again.
+
+Each published image carries a signed build provenance attestation that ties it to the release tag and the workflow that built it. To check it with the GitHub CLI:
+
+```sh
+gh attestation verify oci://ghcr.io/ericpastorm/meshkeep:0.2.0 \
+  --repo ericpastorm/meshkeep --source-ref refs/tags/v0.2.0
+```
+
+To build the image from your checkout instead (`Dockerfile` at the repository root), add the override file: `docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
 
 ## 5. Visit Sites
 

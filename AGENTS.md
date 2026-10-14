@@ -55,3 +55,4 @@ Changes to a format, address derivation, signing input, record ordering, or trus
 
 - Do not commit unless asked. Never rewrite or discard work you did not create.
 - Update ROADMAP.md only for verified milestones, with a dated progress-log entry.
+- Releases happen only when the owner asks. Bump every `package.json` version together (a unit test checks they match `VERSION`), tag `vX.Y.Z` on a green `main`, and CI publishes the image (it refuses a tag that does not match). Then pin the new index digest in `examples/docker/compose.yaml` and the version in the operator guide.

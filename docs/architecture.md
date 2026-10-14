@@ -67,7 +67,7 @@ A replica can follow a curator's published address book (`.well-known/meshkeep/a
 
 ### Container Image
 
-The `Dockerfile` builds a Node.js image with the CLI bundled into one ES module (`scripts/bundle-cli.mjs`, using esbuild) and runs `meshkeep replica run` by default. It needs no exception to the loopback rule: the container is meant to share a Kubo node's network namespace, so the RPC stays on loopback (`examples/docker/compose.yaml`). The integration suite builds the image from the checkout and runs it that way against a private Kubo network.
+The `Dockerfile` builds a Node.js image with the CLI bundled into one ES module (`scripts/bundle-cli.mjs`, using esbuild) and runs `meshkeep replica run` by default. It needs no exception to the loopback rule: the container is meant to share a Kubo node's network namespace, so the RPC stays on loopback (`examples/docker/compose.yaml`). The integration suite builds the image from the checkout and runs it that way against a private Kubo network. A version tag (`vX.Y.Z`) makes CI publish it to `ghcr.io/ericpastorm/meshkeep` for amd64 and arm64, with a build provenance attestation; the workflow refuses a tag that does not match the version in `package.json`. Pull requests build both architectures without publishing.
 
 ### Kubo Configuration
 
