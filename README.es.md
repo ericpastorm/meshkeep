@@ -52,6 +52,16 @@ Las réplicas solo descargan lo que han aceptado guardar. Cada web tiene un lím
 
 Todas las versiones se conservan salvo que decidas otra cosa: `replicate --keep 3` mantiene las tres versiones más recientes (y `sync` lo recuerda), y `meshkeep unreplicate su-blog` deja de seguir una web. En ambos casos solo se quitan los pins que puso la propia réplica, nunca uno que hayas puesto tú o `meshkeep publish` en el mismo nodo.
 
+Ayuda a mantener en línea a toda una comunidad siguiendo la agenda publicada de un curador, igual que te suscribirías a una lista de torrents:
+
+```sh
+meshkeep book publish --key mi-lista     # curador: publica tu agenda como una web
+meshkeep follow k51…curador              # réplica: replica todas las webs que lista, y se mantiene al día
+meshkeep unfollow k51…curador            # deja de seguirla y libera las webs que solo quería esa agenda
+```
+
+`sync` y `replica run` recogen los cambios del curador. Las webs que la agenda deja de listar se dejan de replicar, salvo que las repliques tú mismo o que las liste otra agenda que sigues. `--max-sites` (100 por defecto) y los límites por web acotan lo que un curador te puede pedir. Consulta el [ADR 0003](docs/adr/0003-published-address-books.md).
+
 Visita una web a través del gateway de cualquier nodo Kubo: `http://127.0.0.1:8080/ipns/k51…/`.
 
 Mover la publicación a otra máquina:
@@ -106,7 +116,7 @@ El test de integración publica la v1 y la replica en dos réplicas; después ap
 
 ## Hoja De Ruta
 
-Lo siguiente: seguir agendas publicadas y, después, la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
+Lo siguiente: la extensión de navegador con la agenda y descarga verificada dentro del navegador. Consulta [ROADMAP.md](ROADMAP.md).
 
 ## Contribuir Y Seguridad
 

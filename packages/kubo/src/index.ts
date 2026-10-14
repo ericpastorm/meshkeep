@@ -459,8 +459,12 @@ export class KuboClient {
     await this.json("swarm/connect", { arg: multiaddr });
   }
 
-  async cat(path: string, options: { offline?: boolean } = {}): Promise<Uint8Array> {
-    return this.bytes("cat", { arg: path, offline: options.offline });
+  /** Reads a file. `length` caps how many bytes Kubo returns. */
+  async cat(
+    path: string,
+    options: { offline?: boolean; length?: number } = {},
+  ): Promise<Uint8Array> {
+    return this.bytes("cat", { arg: path, offline: options.offline, length: options.length });
   }
 }
 

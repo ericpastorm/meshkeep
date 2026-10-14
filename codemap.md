@@ -5,7 +5,7 @@
 - `packages/cli/src/bin.ts` → `runCli()` in `packages/cli/src/index.ts`: the `meshkeep` executable and every command.
 - `packages/protocol/src/index.ts`: the public protocol API, re-exported from one module per concern.
 - `packages/kubo/src/index.ts`: `KuboClient` and `parseApiUrl`.
-- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`; `container.test.ts`: the built image next to Kubo. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
+- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`; `container.test.ts`: the built image next to Kubo; `follow.test.ts`: published address books. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
 
 ## Modules
 
@@ -14,7 +14,8 @@ packages/protocol/src/
   identifiers.ts    parseIpnsName (→ base36), parseContentCid (→ base32 v1), isIpnsName
   keys.ts           libp2p Ed25519 private-key encoding, ipnsNameFromPublicKey
   petname.ts        petname rules (DNS-label-like, never an address)
-  address-book.ts   meshkeep-address-book-v1: parse, validate, canonical encode, edit helpers
+  address-book.ts   meshkeep-address-book-v1: parse, validate, canonical encode, edit helpers,
+                    PUBLISHED_ADDRESS_BOOK_PATH (where a site publishes its book)
   policy.ts         import profile values, record lifetime/TTL, re-put interval
   errors.ts         ProtocolError with stable codes
 
@@ -25,7 +26,8 @@ packages/kubo/src/index.ts
 
 packages/cli/src/
   index.ts          commander wiring, --json output, error → exit code 1, replica run
-  daemon.ts         runReplicaDaemon: per-site schedule, backoff, JSON-line events
+  daemon.ts         runReplicaDaemon: per-book and per-site schedule, backoff, JSON-line events
+  follows.ts        published address books: read, follow, refresh, unfollow, wanted sites
   workflows.ts      publishSite, replicateSite (limits, retention), unreplicateSite,
                     verifyComplete, requireImportProfile
   keystore.ts       key files (create, load+verify, import, export)
@@ -55,5 +57,6 @@ packages/cli/src/
 - Untrusted data (records, Kubo responses, address books, key files, site directories) is validated at the boundary, and failures are closed.
 - A replica reports a version only after `dag/stat` succeeds offline and the version fits the site's limits.
 - A replica only unpins versions listed in its `ownedPins` that no other replicated site uses.
+- A replica keeps exactly the wanted sites: manual ones and those its followed books track. A book is read only from a verified, complete version, and an unreadable book changes nothing.
 - Records must point to `/ipfs/<cid>`. Replicas never roll back below a verified sequence.
 - Formats change only with an ADR, updated `spec/README.md`, and fixtures.

@@ -3,6 +3,8 @@ import { parseIpnsName } from "./identifiers.js";
 import { parsePetname } from "./petname.js";
 
 export const ADDRESS_BOOK_FORMAT = "meshkeep-address-book-v1";
+/** Where a site publishes its address book, relative to the site root (ADR 0003). */
+export const PUBLISHED_ADDRESS_BOOK_PATH = ".well-known/meshkeep/address-book.json";
 export const MAX_ADDRESS_BOOK_ENTRIES = 10_000;
 export const MAX_ADDRESS_BOOK_BYTES = 4 * 1024 * 1024;
 export const MAX_NOTE_LENGTH = 280;

@@ -154,7 +154,7 @@ It logs one JSON object per line to stderr, for example:
 {"time":"2026-10-14T06:00:05.000Z","level":"warn","event":"failed","name":"k51…","error":"no valid record found for k51…","failures":1,"retryInSeconds":60}
 ```
 
-Events: `started`, `current` (nothing new), `updated` (new version replicated), `failed` (will retry), `state-unreadable`, `interval-too-long` (warning when `--interval` exceeds 12 hours), and `stopped`. Filter with `jq`, for example `journalctl --user -u meshkeep-replica -o cat | jq 'select(.level != "info")'`. Unexpected internal errors exit the process, and the unit's `Restart=on-failure` brings it back.
+Events: `started`, `current` (nothing new), `updated` (new version replicated), `failed` (will retry), `book-refreshed` and `book-failed` (followed address books, refreshed before the sites), `state-unreadable`, `interval-too-long` (warning when `--interval` exceeds 12 hours), and `stopped`. Filter with `jq`, for example `journalctl --user -u meshkeep-replica -o cat | jq 'select(.level != "info")'`. Unexpected internal errors exit the process, and the unit's `Restart=on-failure` brings it back.
 
 **A timer or cron job running `meshkeep sync`.** Use this if you prefer not to keep a process running. With systemd, copy the timer units from [`examples/systemd/`](../examples/systemd/):
 
@@ -209,6 +209,34 @@ meshkeep unreplicate their-blog             # --keep-pins leaves every pin in pl
 ```
 
 Retention and `unreplicate` unpin a version only when **this replica created the pin** and no other replicated site still uses it. A pin you made yourself, or one `meshkeep publish` made for your own site on the same node, is never removed. Sites replicated before Meshkeep tracked pin ownership (v0.1) report their old pins as `kept`; unpin those yourself with `ipfs pin rm <cid>` if you no longer want them. If an unpin fails, the site stays recorded and you can simply run the command again.
+
+### Follow A Published Address Book
+
+A curator publishes an address book as a site, and a replica can follow it to replicate everything it lists ([ADR 0003](adr/0003-published-address-books.md)).
+
+Curators publish their local address book with:
+
+```sh
+meshkeep book add some-site k51…               # build the list
+meshkeep book publish --key my-list            # publishes .well-known/meshkeep/address-book.json
+```
+
+`book publish` creates a site containing only the book. To keep a homepage too, put the canonical book (`meshkeep book export`) at `.well-known/meshkeep/address-book.json` in your own site and `meshkeep publish` it. Like any site, the book stays alive while replicas hold it, and following replicates it automatically.
+
+Replicas follow it with:
+
+```sh
+meshkeep follow k51…curator --max-sites 50 --max-size 512MiB --keep 3
+meshkeep follows                               # what you follow
+meshkeep unfollow k51…curator                  # --keep-pins leaves the pins in place
+```
+
+What following means:
+
+- **It is trust.** You let the curator choose what your machine hosts. `--max-sites` (default 100) refuses books that grow too big, as a whole and never truncated. `--max-size`, `--max-blocks`, and `--keep` set the limits for every site the follow adds. Sites you already replicate keep your own settings.
+- **It follows changes.** `sync` and `replica run` re-read the book from the curator's newly verified version. Sites the book adds are replicated. Sites it removes are dropped and their pins released, unless you replicate them yourself or another followed book lists them.
+- **It fails safe.** If the book cannot be fetched or read, the follow keeps its last known list, so an outage or a withheld book never makes you drop sites.
+- `unreplicate` refuses a site a followed book lists; unfollow the book instead.
 
 ### Run A Replica With Docker
 
