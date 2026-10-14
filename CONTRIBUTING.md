@@ -31,6 +31,7 @@ Maintainers may close proposals that add a central dependency, a new protocol wi
 pnpm install --frozen-lockfile
 pnpm check              # lint, typecheck, unit tests, build
 pnpm test:integration   # needs Docker; private Kubo network
+pnpm exec playwright install chromium   # once, for the extension suite
 ```
 
 Run the integration tests when you touch Kubo-facing code. If you could not run a check, say so in the pull request. Tests must use generated or fixture keys, non-sensitive content, and isolated Kubo nodes.

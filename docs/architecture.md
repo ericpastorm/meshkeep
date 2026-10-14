@@ -6,7 +6,7 @@ Meshkeep turns a static directory into an immutable, content-addressed version, 
 
 - **Publisher:** holds the site key and signs records. Authority follows the key, not a machine: export the key, import it elsewhere, and keep publishing.
 - **Replica:** a volunteer Kubo node that follows a site. It verifies each record, keeps every block of every version, re-puts the record so the address keeps resolving, and serves blocks and gateway requests.
-- **Visitor:** any IPFS client (a Kubo node today, the browser extension later) that resolves the address and fetches the content, verifying blocks by CID.
+- **Visitor:** any IPFS client that resolves the address and fetches the content, verifying blocks by CID. Today that is a Kubo node, which the browser extension opens sites through.
 
 One machine can play several roles. None of them is a coordinator.
 
@@ -34,6 +34,7 @@ static dir ──► read safely ──► Kubo add ──► pin ──► find
 | `@meshkeep/protocol` | Address derivation, key encoding, CID and address parsing, petnames, address book format, policy constants | Use Node-only APIs, talk to Kubo, print anything |
 | `@meshkeep/kubo` | HTTP calls to Kubo RPC, response validation, loopback guard | Make policy decisions |
 | `@meshkeep/cli` | Commands, keystore, address book file, replica state, publish and replicate workflows | Reimplement protocol validation |
+| `@meshkeep/extension` | The browser's address book, the `mk` omnibox keyword and popup, opening sites on the local gateway | Fetch or render site content, use a remote gateway, reach web pages or local services |
 
 ### Local State
 
@@ -75,11 +76,15 @@ Publishers need the `unixfs-v1-2025` import profile; `meshkeep doctor` and `mesh
 
 ## Access
 
-- **Today:** any Kubo gateway, for example `http://127.0.0.1:8080/ipns/<address>/` on a replica or on the visitor's own node.
-- **Planned:** a browser extension that resolves petnames from the address book and fetches content with an embedded verified-retrieval client. Replica gateways stay optional.
+- **Any Kubo gateway:** for example `http://127.0.0.1:8080/ipns/<address>/` on a replica or on the visitor's own node.
+- **The browser extension** ([ADR 0004](adr/0004-browser-extension.md)): it resolves a petname from the browser's address book and opens `http://<address>.ipns.localhost:<port>/` on the visitor's own Kubo node. The subdomain gateway gives every site its own origin, so the browser keeps sites apart from each other, and Kubo verifies every block and record.
 
 Different gateways are different browser origins. Sites should use relative links and must not assume a fixed hostname.
 
+### Browser Extension
+
+A Manifest V3 extension (`packages/extension`), built with esbuild into `packages/extension/dist`. The background service worker owns the state: the address book, stored in `chrome.storage.local` as canonical `meshkeep-address-book-v1` text, and the gateway port (default 8080). It validates every message and applies changes one at a time. The popup and the address book page only send it requests. The extension never fetches site content. Its only network request is a reachability check for the empty identity CID (`http://bafkqaaa.ipfs.localhost:<port>/`), and its content security policy allows nothing else. It has no content scripts, no web-accessible resources, and no `externally_connectable`, and its only permission is `storage`. We measured why an extension cannot serve sites itself; ADR 0004 has the details.
+
 ## Testing
 
-`pnpm test:integration` starts five Kubo containers: two publishers, two replicas, and a visitor. They run on a Docker network with a random swarm key, no bootstrap peers, and no delegated routing, with RPC and gateway published only on host loopback. The test drives the real CLI through the whole lifecycle. The fixture sites under `tests/fixtures/` have known root CIDs that pin the import profile.
+`pnpm test:integration` starts five Kubo containers: two publishers, two replicas, and a visitor. They run on a Docker network with a random swarm key, no bootstrap peers, and no delegated routing, with RPC and gateway published only on host loopback. The test drives the real CLI through the whole lifecycle. The fixture sites under `tests/fixtures/` have known root CIDs that pin the import profile. The extension suite loads the built extension into Playwright's Chromium against a Kubo container's gateway and drives the address book page and the popup like a user.

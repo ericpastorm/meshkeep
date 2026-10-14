@@ -50,11 +50,18 @@ Following a book delegates the choice of what to host to its curator (ADR 0003).
 
 ### Misleading address books
 
-A shared address book can map a familiar petname to an impostor's address. Importing never overwrites an existing petname without `--replace`. The address itself is the identity; the petname is only a label.
+A shared address book can map a familiar petname to an impostor's address. Importing never overwrites an existing petname without `--replace` (in the extension, the "Replace petnames that already exist" option). The address itself is the identity; the petname is only a label.
 
 ### Malicious site content
 
 Meshkeep proves who signed the content, not that it is safe. Sites are untrusted web content. The extension must isolate them from its own privileges and from local services, and Kubo RPC must never be reachable from a page.
+
+The extension does not run site content itself (ADR 0004). Sites open on the local subdomain gateway, each on its own origin, as ordinary web pages. The extension has no content scripts, no web-accessible resources, and no `externally_connectable`, so a page cannot reach it. Its service worker accepts messages only from the extension's own pages and validates each one. Measured in Chromium against Kubo 0.42.0:
+
+- A site has no `chrome.runtime` and cannot fetch the extension's files.
+- A site cannot read another site's `localStorage`.
+- A CORS request from a site to the Kubo RPC is blocked. A `no-cors` POST to `/api/v0/key/gen` gets 403 from Kubo and creates no key, because Kubo refuses RPC requests whose `Origin` it does not allow. Never add `API.HTTPHeaders` that allow other origins. The Docker replica does not publish the RPC to the host at all.
+- **Known gap:** every site on the gateway is under `localhost`, so a site can set a cookie for `ipns.localhost` that all other sites receive. Sites must not rely on cookies. Removing such cookies is part of the planned isolation review.
 
 ### Local exposure
 
@@ -67,3 +74,4 @@ The CLI refuses non-loopback RPC endpoints by default. It does not follow symlin
 - Copies cannot be deleted from other people's nodes.
 - A valid key holder can publish harmful content.
 - Gateways are separate browser origins, and a remote gateway can lie about freshness.
+- The extension relies on the local Kubo node for verification and freshness; it never sees records itself.

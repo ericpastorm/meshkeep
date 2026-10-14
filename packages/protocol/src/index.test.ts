@@ -12,12 +12,14 @@ import {
   findEntry,
   ipnsNameFromPublicKey,
   isIpnsName,
+  mergeAddressBook,
   ProtocolError,
   type ProtocolErrorCode,
   parseContentCid,
   parseIpnsName,
   parsePetname,
   removeEntry,
+  renameEntry,
   setEntry,
   VERSION,
 } from "./index.js";
@@ -53,6 +55,7 @@ describe("version", () => {
       "../package.json",
       "../../cli/package.json",
       "../../kubo/package.json",
+      "../../extension/package.json",
     ]) {
       const { version } = JSON.parse(readFileSync(new URL(manifest, import.meta.url), "utf8")) as {
         version: string;
@@ -210,5 +213,52 @@ describe("address book", () => {
     book = removeEntry(book, "zeta");
     expect(book.entries).toHaveLength(1);
     expectProtocolError(() => removeEntry(book, "zeta"), "unknown-petname");
+  });
+
+  it("renames an entry and keeps its address and note", () => {
+    const other = ipnsNameFromPublicKey(new Uint8Array(32).fill(7));
+    const book = createAddressBook([
+      { petname: "blog", name: NAME, note: "friend" },
+      { petname: "wiki", name: other },
+    ]);
+
+    expect(renameEntry(book, "blog", "a-blog").entries).toEqual([
+      { petname: "a-blog", name: NAME, note: "friend" },
+      { petname: "wiki", name: other },
+    ]);
+    expect(renameEntry(book, "blog", "blog")).toEqual(book);
+    expectProtocolError(() => renameEntry(book, "blog", "wiki"), "duplicate-petname");
+    expectProtocolError(() => renameEntry(book, "nope", "x"), "unknown-petname");
+    expectProtocolError(() => renameEntry(book, "blog", "Not Valid"), "invalid-petname");
+  });
+
+  it("merges books in one change, skipping identical entries", () => {
+    const other = ipnsNameFromPublicKey(new Uint8Array(32).fill(7));
+    const book = createAddressBook([{ petname: "blog", name: NAME, note: "friend" }]);
+    const incoming = createAddressBook([
+      { petname: "blog", name: NAME, note: "friend" },
+      { petname: "wiki", name: other },
+    ]);
+
+    const merged = mergeAddressBook(book, incoming);
+    expect(merged.book.entries.map((entry) => entry.petname)).toEqual(["blog", "wiki"]);
+    expect([merged.added, merged.replaced, merged.unchanged]).toEqual([["wiki"], [], ["blog"]]);
+
+    const conflicting = createAddressBook([
+      { petname: "blog", name: other },
+      { petname: "new", name: other },
+    ]);
+    expectProtocolError(() => mergeAddressBook(book, conflicting), "duplicate-petname");
+
+    const replaced = mergeAddressBook(book, conflicting, { replace: true });
+    expect(replaced.book.entries).toEqual([
+      { petname: "blog", name: other },
+      { petname: "new", name: other },
+    ]);
+    expect([replaced.added, replaced.replaced, replaced.unchanged]).toEqual([
+      ["new"],
+      ["blog"],
+      [],
+    ]);
   });
 });

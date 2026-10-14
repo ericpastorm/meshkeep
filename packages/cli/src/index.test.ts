@@ -55,7 +55,7 @@ describe("environment", () => {
   });
 
   it("prints its version", async () => {
-    expect((await run("version")).stdout).toBe("0.2.0\n");
+    expect((await run("version")).stdout).toBe("0.3.0-dev\n");
   });
 
   it("returns commander's exit code for usage errors", async () => {

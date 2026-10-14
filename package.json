@@ -1,6 +1,6 @@
 {
   "name": "meshkeep",
-  "version": "0.2.0",
+  "version": "0.3.0-dev",
   "license": "MPL-2.0",
   "private": true,
   "type": "module",
@@ -27,11 +27,13 @@
     "bundle": "node scripts/bundle-cli.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.3.11",
     "@meshkeep/cli": "workspace:*",
     "@meshkeep/kubo": "workspace:*",
-    "@biomejs/biome": "2.3.11",
+    "@meshkeep/protocol": "workspace:*",
     "@types/node": "22.20.1",
     "esbuild": "0.28.1",
+    "playwright": "1.64.1",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.10"

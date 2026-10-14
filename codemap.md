@@ -5,7 +5,8 @@
 - `packages/cli/src/bin.ts` → `runCli()` in `packages/cli/src/index.ts`: the `meshkeep` executable and every command.
 - `packages/protocol/src/index.ts`: the public protocol API, re-exported from one module per concern.
 - `packages/kubo/src/index.ts`: `KuboClient` and `parseApiUrl`.
-- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`; `container.test.ts`: the built image next to Kubo; `follow.test.ts`: published address books. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
+- `packages/extension/src/background.ts`: the extension's service worker; `popup.ts` and `book.ts` are its pages. `packages/extension/build.mjs` builds `dist/`.
+- `tests/integration/lifecycle.test.ts`: the end-to-end scenario; `limits.test.ts`: replica limits and an interrupted fetch; `daemon.test.ts`: `replica run`; `container.test.ts`: the built image next to Kubo; `follow.test.ts`: published address books; `extension.test.ts`: the browser extension in Playwright's Chromium. All run on `cluster.ts` (Docker Kubo network) and `cli.ts` (in-process CLI runner, foreground or background).
 
 ## Modules
 
@@ -14,8 +15,9 @@ packages/protocol/src/
   identifiers.ts    parseIpnsName (→ base36), parseContentCid (→ base32 v1), isIpnsName
   keys.ts           libp2p Ed25519 private-key encoding, ipnsNameFromPublicKey
   petname.ts        petname rules (DNS-label-like, never an address)
-  address-book.ts   meshkeep-address-book-v1: parse, validate, canonical encode, edit helpers,
-                    PUBLISHED_ADDRESS_BOOK_PATH (where a site publishes its book)
+  address-book.ts   meshkeep-address-book-v1: parse, validate, canonical encode, edit helpers
+                    (set, remove, rename, merge), PUBLISHED_ADDRESS_BOOK_PATH (where a site
+                    publishes its book)
   policy.ts         import profile values, record lifetime/TTL, re-put interval
   errors.ts         ProtocolError with stable codes
 
@@ -35,6 +37,16 @@ packages/cli/src/
   site.ts           safe deterministic directory reader (no symlinks, no dotfiles by default)
   units.ts          strict parsing of sizes (512MiB) and positive integers for options
   files.ts          size-limited reads, atomic private writes, no-clobber creates, PID lock
+
+packages/extension/src/
+  background.ts     service worker: chrome.* wiring, message sender check, omnibox
+  service.ts        ExtensionService: every request, opening, omnibox suggestions (no chrome.*)
+  messages.ts       request types and their validation at the boundary
+  state.ts          ExtensionState: book as canonical text, gateway port, changes in order
+  target.ts         input → address + path, the *.ipns.localhost URL that cannot leave its origin
+  gateway.ts        reachability check with the empty identity CID
+  suggest.ts        petname matching and omnibox markup escaping
+  popup.ts, book.ts the pages (DOM built from text only, never HTML strings); ui.ts helpers
 ```
 
 ## Operations
@@ -49,7 +61,7 @@ packages/cli/src/
 ```text
 @meshkeep/protocol  ◄── @meshkeep/cli ──►  @meshkeep/kubo ──► Kubo RPC (loopback)
         ▲
-        └── future browser extension (must stay browser-safe)
+        └── @meshkeep/extension ──► opens http://<address>.ipns.localhost:<port>/ (Kubo gateway)
 ```
 
 ## Invariants
@@ -60,3 +72,4 @@ packages/cli/src/
 - A replica keeps exactly the wanted sites: manual ones and those its followed books track. A book is read only from a verified, complete version, and an unreadable book changes nothing.
 - Records must point to `/ipfs/<cid>`. Replicas never roll back below a verified sequence.
 - Formats change only with an ADR, updated `spec/README.md`, and fixtures.
+- The extension never fetches or renders site content, never uses a remote gateway, and answers only its own pages.

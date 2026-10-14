@@ -278,7 +278,7 @@ http://<address>.ipns.localhost:8080/     each site gets its own browser origin 
 http://127.0.0.1:8080/ipns/<address>/     path form; all sites share one origin
 ```
 
-`meshkeep resolve their-blog` prints the CID the address currently points to. A browser extension that does all of this from your address book is planned (v0.3).
+`meshkeep resolve their-blog` prints the CID the address currently points to. The browser extension does this from its own address book: type `mk their-blog` in the address bar. If your gateway is not on port 8080, set the port on the extension's address book page. See the [README](../README.md#browser-extension-preview).
 
 ## 6. Troubleshooting
 
